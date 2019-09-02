@@ -13,6 +13,7 @@ httpFetch = function(){
   defaults = {
     timeout: 20,
     headers: {
+      'Accept': 'application/json',
       'Content-Type': 'application/json'
     }
   };
@@ -29,11 +30,17 @@ httpFetch = function(){
     this.signal = null;
   };
   responseHandler = function(r){
-    return r.json().then(function(r){
-      if (!r.ok) {
-        throw r;
+    return r.text().then(function(r){
+      var e;
+      if (r) {
+        try {
+          return JSON.parse(r);
+        } catch (e$) {
+          e = e$;
+          throw new Error('Incorrect server response: ' + e.message + ': ' + r);
+        }
       }
-      return r;
+      return null;
     });
   };
   handler = function(opts, callback){
@@ -64,6 +71,7 @@ httpFetch = function(){
         abrt.abort();
       }, 1000 * a);
     }
+    debugger;
     fetch(opts.url, o).then(responseHandler).then(function(r){
       if (timeout) {
         clearTimeout(timeout);

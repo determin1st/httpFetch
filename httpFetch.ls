@@ -13,6 +13,7 @@ httpFetch = do ->
 	defaults = # {{{
 		timeout: 20
 		headers:
+			'Accept': 'application/json'
 			'Content-Type': 'application/json'
 	# }}}
 	HandlerOptions = (url, method) !-> # {{{
@@ -28,13 +29,18 @@ httpFetch = do ->
 		@signal  = null
 	# }}}
 	responseHandler = (r) -> # {{{
-		# create initial response handler
-		return r.json!.then (r) ->
-			# check for errors
-			if !r.ok
-				throw r
-			# done
-			return r
+		# initial response handler
+		# text conversion is used because .json() with empty body
+		# may throw an error in case of no-cors opaque mode (I dont need that bullshit)
+		return r.text!.then (r) ->
+			if r
+				# parse non-empty to JSON
+				try
+					return JSON.parse r
+				catch e
+					throw new Error 'Incorrect server response: '+e.message+': '+r
+			# empty
+			return null
 	# }}}
 	handler = (opts, callback) -> # {{{
 		# check parameters
@@ -68,6 +74,7 @@ httpFetch = do ->
 				abrt.abort!
 			, 1000*a
 		# execute
+		debugger
 		fetch opts.url, o
 			.then responseHandler
 			.then (r) !->
