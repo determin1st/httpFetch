@@ -1,17 +1,18 @@
 # httpFetch
 
-*[fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction for the browser*
+*Personal [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction for the browser*
 
 
 ## Syntax
 
 ### `httpFetch.post(url, data, callback(ok, res))`
+### `httpFetch.get(url, callback(ok, res))`
 
 #### Parameters
 
 - **`url`** - request destination, reference to the web resource
 - **`data`** - string or serializable object to be sent as the request body
-- **`callback`** - a function which will handle result
+- **`callback`** - function which will handle result
   - **`ok`** - boolean flag
   - **`res`** - server response object (`null` for empty responses) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 
@@ -19,7 +20,7 @@
 
 Boolean. Indicates that fetch was started and the callback will run.
 
-#### Example
+#### Examples
 
 ```JavaScript
 httpFetch.post('/api/drivers/create', {
@@ -40,21 +41,6 @@ httpFetch.post('/api/drivers/create', {
   }
 });
 ```
-
-### `httpFetch.get(url, callback(ok, res))`
-
-#### Parameters
-
-- **`url`** - request destination, reference to the web resource
-- **`callback`** - a function which will handle result
-  - **`ok`** - boolean flag
-  - **`res`** - server response object (`null` for empty responses) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
-
-#### Return value
-
-Boolean. Indicates that fetch was started and the callback will run.
-
-#### Example
 
 ```JavaScript
 httpFetch.get('/api/drivers/list', function(ok, res) {
