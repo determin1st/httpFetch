@@ -16,11 +16,5 @@
     "livescript"
   ],
   "main": "httpFetch.js",
-  "preferGlobal": true,
-  "scripts": {
-    "posttest": "git checkout -- lib",
-    "pretest": "make force && make force",
-    "test": "make test"
-  },
   "version": "1.0.0"
 }

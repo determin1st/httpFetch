@@ -1,9 +1,14 @@
 'use strict'
-###
-not httpFetch and httpFetch = do ->
+httpFetch = do ->
 	# check requirements
-	if not fetch or not AbortController or not Proxy
+	# {{{
+	api = {}
+	api[typeof fetch] = true
+	api[typeof AbortController] = true
+	api[typeof Proxy] = true
+	if api['undefined']
 		return null
+	# }}}
 	# initialize
 	defaults = # {{{
 		timeout: 20
@@ -95,3 +100,5 @@ not httpFetch and httpFetch = do ->
 			return true
 	}
 ###
+if httpFetch and typeof module != 'undefined'
+	module.exports = httpFetch
