@@ -7,6 +7,7 @@ httpFetch = do ->
 	api[typeof AbortController] = true
 	api[typeof Proxy] = true
 	if api['undefined']
+		console.log 'httpFetch: missing requirements'
 		return null
 	# }}}
 	# initialize
