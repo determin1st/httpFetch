@@ -27,7 +27,7 @@ httpFetch = function(){
   FetchOptions = function(method){
     this.method = method;
     this.headers = defaults.headers;
-    this.body = '';
+    this.body = null;
     this.signal = null;
   };
   responseHandler = function(r){

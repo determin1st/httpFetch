@@ -26,7 +26,7 @@ httpFetch = do ->
 	FetchOptions = (method) !-> # {{{
 		@method  = method
 		@headers = defaults.headers
-		@body    = ''
+		@body    = null
 		@signal  = null
 	# }}}
 	responseHandler = (r) -> # {{{
