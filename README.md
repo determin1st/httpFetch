@@ -1,5 +1,7 @@
 # httpFetch
 
+[![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
+
 *Personal [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction for the browser*
 
 
@@ -70,3 +72,5 @@ NPM:
 ```bash
 $ npm install http-fetch-json
 ```
+
+
