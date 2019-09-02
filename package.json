@@ -1,0 +1,26 @@
+{
+  "name": "httpFetch",
+  "description": "fetch API abstraction",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/determin1st/httpFetch.git"
+  },
+  "files": [
+    "httpFetch.js",
+    "httpFetch.ls",
+    "README.md"
+  ],
+  "keywords": [
+    "http",
+    "fetch",
+    "livescript"
+  ],
+  "main": "httpFetch.js",
+  "preferGlobal": true,
+  "scripts": {
+    "posttest": "git checkout -- lib",
+    "pretest": "make force && make force",
+    "test": "make test"
+  },
+  "version": "1.0.0"
+}
