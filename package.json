@@ -1,6 +1,6 @@
 {
-  "name": "httpFetch",
-  "description": "fetch API abstraction",
+  "name": "http-fetch-json",
+  "description": "Personal fetch API abstraction",
   "repository": {
     "type": "git",
     "url": "git://github.com/determin1st/httpFetch.git"
@@ -12,8 +12,7 @@
   ],
   "keywords": [
     "http",
-    "fetch",
-    "livescript"
+    "fetch"
   ],
   "main": "httpFetch.js",
   "version": "1.0.0"
