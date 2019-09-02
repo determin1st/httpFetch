@@ -1,6 +1,6 @@
 # httpFetch
 
-*[fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction layer for the browser*
+*[fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction for the browser*
 
 
 ## Syntax
@@ -84,5 +84,3 @@ NPM:
 ```bash
 $ npm install httpFetch
 ```
-
-
