@@ -71,7 +71,6 @@ httpFetch = function(){
         abrt.abort();
       }, 1000 * a);
     }
-    debugger;
     fetch(opts.url, o).then(responseHandler).then(function(r){
       if (timeout) {
         clearTimeout(timeout);

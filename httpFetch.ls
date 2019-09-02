@@ -74,7 +74,6 @@ httpFetch = do ->
 				abrt.abort!
 			, 1000*a
 		# execute
-		debugger
 		fetch opts.url, o
 			.then responseHandler
 			.then (r) !->
