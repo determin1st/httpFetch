@@ -18,7 +18,7 @@
 
 #### Return value
 
-Boolean. Indicates that fetch was started and the callback will run.
+Boolean. Indicates that fetch has been started.
 
 #### Examples
 
@@ -63,10 +63,10 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 
 CDN:
 ```html
-<script src="https://cdn.jsdelivr.net/gh/determin1st/httpFetch@master/httpFetch.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/http-fetch-json@1/httpFetch.js"></script>
 ```
 
 NPM:
 ```bash
-$ npm install httpFetch
+$ npm install http-fetch-json
 ```
