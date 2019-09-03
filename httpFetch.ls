@@ -13,6 +13,7 @@ httpFetch = do ->
 	# initialize
 	defaults = # {{{
 		timeout: 20
+		only200: true
 		headers:
 			'Accept': 'application/json'
 			'Content-Type': 'application/json'
@@ -29,17 +30,37 @@ httpFetch = do ->
 		@body    = null
 		@signal  = null
 	# }}}
+	FetchError = do -> # {{{
+		if Error.captureStackTrace
+			FE = (message, status) !->
+				@name    = 'FetchError'
+				@message = message
+				@status  = status
+				Error.captureStackTrace @, FetchError
+		else
+			FE = (message, status) !->
+				@name    = 'FetchError'
+				@message = message
+				@status  = status
+				@stack   = (new Error message).stack
+		###
+		FE.prototype = Error.prototype
+		return FE
+	# }}}
 	responseHandler = (r) -> # {{{
 		# initial response handler
-		# text conversion is used because .json() with empty body
+		# check for HTTP status
+		if not r.ok or (r.status != 200 and defaults.only200)
+			throw new FetchError r.statusText, r.status
+		# convert response to text because .json() with empty body
 		# may throw an error in case of no-cors opaque mode (I dont need that bullshit)
 		return r.text!.then (r) ->
+			# parse non-empty as JSON
 			if r
-				# parse non-empty to JSON
 				try
 					return JSON.parse r
 				catch e
-					throw new Error 'Incorrect server response: '+e.message+': '+r
+					throw new Error 'Incorrect response body: '+e.message+': '+r
 			# empty
 			return null
 	# }}}

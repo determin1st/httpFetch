@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, defaults, HandlerOptions, FetchOptions, responseHandler, handler;
+  var api, defaults, HandlerOptions, FetchOptions, FetchError, responseHandler, handler;
   api = {};
   api[typeof fetch] = true;
   api[typeof AbortController] = true;
@@ -13,6 +13,7 @@ httpFetch = function(){
   }
   defaults = {
     timeout: 20,
+    only200: true,
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json'
@@ -30,7 +31,30 @@ httpFetch = function(){
     this.body = null;
     this.signal = null;
   };
+  FetchError = function(){
+    var FE;
+    if (Error.captureStackTrace) {
+      FE = function(message, status){
+        this.name = 'FetchError';
+        this.message = message;
+        this.status = status;
+        Error.captureStackTrace(this, FetchError);
+      };
+    } else {
+      FE = function(message, status){
+        this.name = 'FetchError';
+        this.message = message;
+        this.status = status;
+        this.stack = new Error(message).stack;
+      };
+    }
+    FE.prototype = Error.prototype;
+    return FE;
+  }();
   responseHandler = function(r){
+    if (!r.ok || (r.status !== 200 && defaults.only200)) {
+      throw new FetchError(r.statusText, r.status);
+    }
     return r.text().then(function(r){
       var e;
       if (r) {
@@ -38,7 +62,7 @@ httpFetch = function(){
           return JSON.parse(r);
         } catch (e$) {
           e = e$;
-          throw new Error('Incorrect server response: ' + e.message + ': ' + r);
+          throw new Error('Incorrect response body: ' + e.message + ': ' + r);
         }
       }
       return null;
