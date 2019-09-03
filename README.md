@@ -59,7 +59,9 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
   }
 });
 ```
+#### Demos
 
+[Random quote fetcher](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010)
 
 ## Install
 
