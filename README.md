@@ -9,6 +9,7 @@
 
 ### `httpFetch.post(url, data, callback(ok, res))`
 ### `httpFetch.get(url, callback(ok, res))`
+### `httpFetch(options, callback(ok, res))`
 
 #### Parameters
 
@@ -30,7 +31,6 @@ httpFetch.post('/api/drivers/create', {
   age: 60,
   licenseId: '123456789'
 }, function(ok, res) {
-  // check for errors
   if (ok)
   {
     // show JSON response from the server
@@ -38,7 +38,7 @@ httpFetch.post('/api/drivers/create', {
   }
   else
   {
-    // show error message
+    // show Error message
     console.log(res.message);
   }
 });
@@ -46,7 +46,6 @@ httpFetch.post('/api/drivers/create', {
 
 ```JavaScript
 httpFetch.get('/api/drivers/list', function(ok, res) {
-  // check for errors
   if (ok)
   {
     // show JSON response from the server
@@ -54,7 +53,7 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
   }
   else
   {
-    // show error message
+    // show Error message
     console.log(res.message);
   }
 });
@@ -62,6 +61,10 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 #### Demos
 
 [Random quote fetcher](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010)
+
+## Options
+
+## Config
 
 ## Install
 

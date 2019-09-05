@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, defaults, HandlerOptions, FetchOptions, FetchError, responseHandler, handler;
+  var api, Config, FetchOptions, FetchError, HandlerOptions, textParser, fetchHandler, newInstance, Api, apiHandler;
   api = {};
   api[typeof fetch] = true;
   api[typeof AbortController] = true;
@@ -11,126 +11,159 @@ httpFetch = function(){
     console.log('httpFetch: missing requirements');
     return null;
   }
-  defaults = {
-    timeout: 20,
-    only200: true,
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json'
-    }
-  };
-  HandlerOptions = function(url, method){
-    this.url = url;
-    this.method = method;
-    this.data = '';
-    this.timeout = defaults.timeout;
+  Config = function(){
+    this.baseUrl = '';
+    this.timeout = 20;
+    this.only200 = true;
+    this.headers = null;
   };
   FetchOptions = function(method){
     this.method = method;
-    this.headers = defaults.headers;
     this.body = null;
     this.signal = null;
+    this.headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
   };
   FetchError = function(){
-    var FE;
+    var E;
     if (Error.captureStackTrace) {
-      FE = function(message, status){
+      E = function(message, status){
         this.name = 'FetchError';
         this.message = message;
         this.status = status;
         Error.captureStackTrace(this, FetchError);
       };
     } else {
-      FE = function(message, status){
+      E = function(message, status){
         this.name = 'FetchError';
         this.message = message;
         this.status = status;
         this.stack = new Error(message).stack;
       };
     }
-    FE.prototype = Error.prototype;
-    return FE;
+    E.prototype = Error.prototype;
+    return E;
   }();
-  responseHandler = function(r){
-    if (!r.ok || (r.status !== 200 && defaults.only200)) {
-      throw new FetchError(r.statusText, r.status);
+  HandlerOptions = function(url, method, timeout){
+    this.url = url;
+    this.method = method;
+    this.data = '';
+    this.timeout = timeout;
+  };
+  textParser = function(r){
+    var e;
+    if (r) {
+      try {
+        return JSON.parse(r);
+      } catch (e$) {
+        e = e$;
+        throw new Error('Incorrect response body: ' + e.message + ': ' + r);
+      }
     }
-    return r.text().then(function(r){
-      var e;
-      if (r) {
-        try {
-          return JSON.parse(r);
-        } catch (e$) {
-          e = e$;
-          throw new Error('Incorrect response body: ' + e.message + ': ' + r);
+    return null;
+  };
+  fetchHandler = function(config){
+    var responseHandler;
+    responseHandler = function(r){
+      if (!r.ok || (r.status !== 200 && config.only200)) {
+        throw new FetchError(r.statusText, r.status);
+      }
+      return r.text().then(textParser);
+    };
+    return function(options, callback){
+      var a, o, aController, timeout;
+      if (toString$.call(options).slice(8, -1) !== 'Object' || typeof callback !== 'function') {
+        return null;
+      }
+      a = options.hasOwnProperty('method')
+        ? options.method
+        : options.data ? 'POST' : 'GET';
+      o = new FetchOptions(a);
+      if (config.headers) {
+        import$(o.headers, config.headers);
+      }
+      if (options.headers) {
+        import$(o.headers, options.headers);
+      }
+      if (options.data) {
+        o.body = typeof options.data === 'string'
+          ? options.data
+          : JSON.stringify(options.data);
+      }
+      aController = new AbortController();
+      o.signal = aController.signal;
+      a = options.hasOwnProperty('timeout')
+        ? options.timeout
+        : config.timeout;
+      if (a >= 1) {
+        timeout = setTimeout(function(){
+          aController.abort();
+        }, 1000 * a);
+      }
+      a = options.url
+        ? config.baseUrl + options.url
+        : config.baseUrl;
+      fetch(a, o).then(responseHandler).then(function(r){
+        if (timeout) {
+          clearTimeout(timeout);
         }
-      }
-      return null;
-    });
+        callback(true, r);
+      })['catch'](function(e){
+        callback(false, e);
+      });
+      return aController;
+    };
   };
-  handler = function(opts, callback){
-    var a, o, abrt, timeout;
-    if (toString$.call(opts).slice(8, -1) !== 'Object' || typeof callback !== 'function') {
-      return false;
-    }
-    if (opts.hasOwnProperty('method')) {
-      a = opts.method;
-    } else if (opts.data) {
-      a = 'POST';
-    } else {
-      a = 'GET';
-    }
-    o = new FetchOptions(a);
-    if (opts.data) {
-      o.body = typeof opts.data === 'string'
-        ? opts.data
-        : JSON.stringify(opts.data);
-    }
-    a = opts.hasOwnProperty('timeout')
-      ? opts.timeout
-      : defaults.timeout;
-    if (a >= 1) {
-      abrt = new AbortController();
-      o.signal = abrt.signal;
-      timeout = setTimeout(function(){
-        abrt.abort();
-      }, 1000 * a);
-    }
-    fetch(opts.url, o).then(responseHandler).then(function(r){
-      if (timeout) {
-        clearTimeout(timeout);
+  newInstance = function(config){
+    var c, a, h;
+    c = new Config();
+    for (a in c) {
+      if (config.hasOwnProperty(a)) {
+        c[a] = config[a];
       }
-      callback(true, r);
-    })['catch'](function(e){
-      callback(false, e);
-    });
-    return true;
+    }
+    h = fetchHandler(c);
+    h.config = c;
+    h.api = new Api(h);
+    return new Proxy(h, apiHandler);
   };
-  api = {
-    post: function(url, data, callback){
-      var o;
-      o = new HandlerOptions(url, 'POST');
+  Api = function(handler){
+    this.post = function(url, data, callback){
+      var options;
+      options = new HandlerOptions(url, 'POST', handler.config.timeout);
       if (data) {
-        o.data = data;
+        options.data = data;
       }
-      return handler(o, callback);
-    },
-    get: function(url, callback){
-      return handler(new HandlerOptions(url, 'GET'), callback);
-    }
+      return handler(options, callback);
+    };
+    this.get = function(url, callback){
+      return handler(new HandlerOptions(url, 'GET', handler.config.timeout), callback);
+    };
+    this.create = newInstance;
   };
-  return new Proxy(handler, {
+  apiHandler = {
     get: function(me, key){
-      if (api.hasOwnProperty(key)) {
-        return api[key];
+      if (typeof me.api[key] === 'function') {
+        return me.api[key];
+      }
+      if (me.config.hasOwnProperty(key)) {
+        return me.config[key];
       }
       return null;
     },
     set: function(me, key, val){
       return true;
     }
-  });
+  };
+  return newInstance(new Config());
 }();
 if (httpFetch && typeof module !== 'undefined') {
   module.exports = httpFetch;
+}
+function import$(obj, src){
+  var own = {}.hasOwnProperty;
+  for (var key in src) if (own.call(src, key)) obj[key] = src[key];
+  return obj;
 }
