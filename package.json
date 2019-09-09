@@ -1,6 +1,6 @@
 {
   "name": "http-fetch-json",
-  "description": "Personal fetch API abstraction",
+  "description": "Personal fetch API wrapper for the browser",
   "repository": {
     "type": "git",
     "url": "git://github.com/determin1st/httpFetch.git"
@@ -16,5 +16,5 @@
     "json"
   ],
   "main": "httpFetch.js",
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

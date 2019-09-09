@@ -2,47 +2,27 @@
 
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
-*Personal [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) abstraction for the browser*
+*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser*
 
 
 ## Syntax
-
-### `httpFetch.post(url, data, callback(ok, res))`
-### `httpFetch.get(url, callback(ok, res))`
-### `httpFetch(options, callback(ok, res))`
+### `httpFetch.post(url, data[, callback(ok, res)])`
+### `httpFetch.get(url[, callback(ok, res)])`
 
 #### Parameters
 
-- **`url`** - request destination, reference to the web resource
+- **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
 - **`data`** - string or serializable object to be sent as the request body
-- **`callback`** - function which will handle result
-  - **`ok`** - boolean flag
-  - **`res`** - server response object (`null` for empty responses) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
+- **`callback`**(*optional*) - result handler function, influences return value
+  - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
+  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 
 #### Return value
 
-Boolean. Indicates that fetch has been started.
+With the callback set, the function returns an instance of [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) on success or `null` on failure. The [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) is returned when callback omitted.
 
-#### Examples
 
-```JavaScript
-httpFetch.post('/api/drivers/create', {
-  name: 'John Smith',
-  age: 60,
-  licenseId: '123456789'
-}, function(ok, res) {
-  if (ok)
-  {
-    // show JSON response from the server
-    console.log(res);
-  }
-  else
-  {
-    // show Error message
-    console.log(res.message);
-  }
-});
-```
+#### Example
 
 ```JavaScript
 httpFetch.get('/api/drivers/list', function(ok, res) {
@@ -58,13 +38,51 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
   }
 });
 ```
-#### Demos
+#### Demo
 
 [Random quote fetcher](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010)
 
-## Options
 
-## Config
+## Extended syntax
+### `httpFetch(options[, callback(ok, res)])`
+
+#### Parameters
+
+- **`options`** - object with:
+  - **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
+  - **`data`**(*optional*) - string or serializable object to be sent as the request body
+  - **`method`**(*optional*) - request method string, for example: `GET`, `POST`. the default is determined according to the data
+  - **`timeout`**(*optional*) - a period of time in seconds, after which the request will be aborted
+  - **`retry`**(*optional*) - integer count or object with parameters
+- **`callback`**(*optional*) - result handler function, influences return value
+  - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
+  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
+
+#### Return value
+
+When the callback is present, function returns an instance of `AbortController` on success or `null` on failure. `Promise` is returned when callback omitted.
+
+
+## Instance Configuration
+### `httpFetch.create(config)`
+
+#### Parameters
+
+- **`config`** - object with:
+  - **`baseUrl`**
+  - **`status200`**
+  - **`noEmpty`**
+  - **`timeout`**
+  - **`retry`**
+    - **`count`** - positive integer, `15` attempts by default
+    - **`expoBackoff`** - boolean, activates [exponential backoff algorithm](https://en.wikipedia.org/wiki/Exponential_backoff), `true` by default
+    - **`maxBackoff`** - positive integer, `32` seconds by default
+    - **`delay`** - positive integer or array of integers, used when **`expoBackoff`** is `false`, `1` second by default
+
+#### Return value
+
+...
+
 
 ## Install
 
