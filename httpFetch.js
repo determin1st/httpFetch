@@ -3,11 +3,8 @@
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
   var api, FetchOptions, FetchError, Config, RetryOptions, HandlerOptions, HandlerData, fetchHandler, newInstance, Api, apiHandler;
-  api = {};
-  api[typeof fetch] = true;
-  api[typeof AbortController] = true;
-  api[typeof Proxy] = true;
-  if (api['undefined']) {
+  api = [typeof fetch, typeof AbortController, typeof Proxy];
+  if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
     return null;
   }

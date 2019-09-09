@@ -2,11 +2,12 @@
 httpFetch = do ->
 	# check requirements
 	# {{{
-	api = {}
-	api[typeof fetch] = true
-	api[typeof AbortController] = true
-	api[typeof Proxy] = true
-	if api['undefined']
+	api = [
+		typeof fetch
+		typeof AbortController
+		typeof Proxy
+	]
+	if api.includes 'undefined'
 		console.log 'httpFetch: missing requirements'
 		return null
 	# }}}
@@ -254,3 +255,4 @@ httpFetch = do ->
 if httpFetch and typeof module != 'undefined'
 	module.exports = httpFetch
 
+# vim: ts=2 sw=2 sts=2 fdm=marker:
