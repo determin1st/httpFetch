@@ -204,17 +204,22 @@ httpFetch = do ->
 			# ...
 			return null
 	# }}}
-	newInstance = (config) -> # {{{
-		# prepare configuration
+	newInstance = (base) -> (config) -> # {{{
+		# create configuration
 		c = new Config!
+		# initialize it
+		# set base
+		if base
+			for a of c
+				c[a] = base[a]
+		# set specified options
 		for a of c when config.hasOwnProperty a
 			c[a] = config[a]
-		# create new handler
+		# create and initialize handler
 		h = fetchHandler c
-		# initialize it
 		h.config = c
 		h.api = new Api h
-		# create api proxy
+		# create api
 		return new Proxy h, apiHandler
 	# }}}
 	Api = (handler) !-> # {{{
@@ -228,7 +233,7 @@ httpFetch = do ->
 		@get = (url, callback) ->
 			return handler (new HandlerOptions url, 'GET', handler.config), callback
 		###
-		@create = newInstance
+		@create = newInstance handler.config
 	# }}}
 	apiHandler = # {{{
 		get: (me, key) ->
@@ -244,7 +249,7 @@ httpFetch = do ->
 			# ...
 			return true
 	# }}}
-	return newInstance new Config!
+	return (newInstance null) new Config!
 ###
 if httpFetch and typeof module != 'undefined'
 	module.exports = httpFetch

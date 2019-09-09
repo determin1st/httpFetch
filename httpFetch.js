@@ -195,18 +195,25 @@ httpFetch = function(){
       return null;
     };
   };
-  newInstance = function(config){
-    var c, a, h;
-    c = new Config();
-    for (a in c) {
-      if (config.hasOwnProperty(a)) {
-        c[a] = config[a];
+  newInstance = function(base){
+    return function(config){
+      var c, a, h;
+      c = new Config();
+      if (base) {
+        for (a in c) {
+          c[a] = base[a];
+        }
       }
-    }
-    h = fetchHandler(c);
-    h.config = c;
-    h.api = new Api(h);
-    return new Proxy(h, apiHandler);
+      for (a in c) {
+        if (config.hasOwnProperty(a)) {
+          c[a] = config[a];
+        }
+      }
+      h = fetchHandler(c);
+      h.config = c;
+      h.api = new Api(h);
+      return new Proxy(h, apiHandler);
+    };
   };
   Api = function(handler){
     this.post = function(url, data, callback){
@@ -220,7 +227,7 @@ httpFetch = function(){
     this.get = function(url, callback){
       return handler(new HandlerOptions(url, 'GET', handler.config), callback);
     };
-    this.create = newInstance;
+    this.create = newInstance(handler.config);
   };
   apiHandler = {
     get: function(me, key){
@@ -236,7 +243,7 @@ httpFetch = function(){
       return true;
     }
   };
-  return newInstance(new Config());
+  return newInstance(null)(new Config());
 }();
 if (httpFetch && typeof module !== 'undefined') {
   module.exports = httpFetch;
