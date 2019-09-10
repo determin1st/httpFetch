@@ -2,7 +2,7 @@
 
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
-*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser (alpha)*
+*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser*
 
 
 ## Syntax
@@ -40,7 +40,7 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 ```
 #### Demo
 
-[Random quote fetcher](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010)
+[Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
 
 
 ## Extended syntax
