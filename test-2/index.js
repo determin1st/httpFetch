@@ -10,7 +10,23 @@ window.addEventListener('load', function() {
         redirect_uri: 'https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html',
         scope: 'profile'
     };
-    var a, b, c;
+    var iFetch, a, b;
+    ////
+    token = {
+        access_token:"ya29.GluAB4KA23TaSsoEN6jpNlbBs_5qKqy_3tTNDipIBYOQbNJf0b8KvxQ1-R30zbcbOqzJ5FgIxjZKZbZINu-i0cydvZyoCjRu_pR-MPsjYfC1RYeeJcsSf0UJkS7u",
+        token_type:"Bearer",
+        expires_in:"3600",
+        scope:"profile%20https://www.googleapis.com/auth/userinfo.profile"
+    };
+    httpFetch({
+        url: 'https://www.googleapis.com/auth/userinfo.profile',
+        headers: {
+            Authorization: 'Bearer '+token.access_token
+        }
+    }, function(ok, res) {
+        debugger;
+    });
+    return;
     ////
     // check token set
     if (a = window.location.hash)
@@ -25,6 +41,10 @@ window.addEventListener('load', function() {
         // clear location and show document body
         window.location.hash = '';
         document.body.style.display = '';
+        // create new httpFetch instance
+        iFetch = httpFetch.create({
+            baseUrl: '',
+        });
         // prepare test
         document.querySelector('button').addEventListener('click', function(e) {
         });
