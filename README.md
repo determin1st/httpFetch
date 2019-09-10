@@ -2,7 +2,7 @@
 
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
-*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser*
+*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser (alpha)*
 
 
 ## Syntax
@@ -51,7 +51,8 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 - **`options`** - object with:
   - **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
   - **`data`**(*optional*) - string or serializable object to be sent as the request body
-  - **`method`**(*optional*) - request method string, for example: `GET`, `POST`. the default is determined according to the data
+  - **`method`**(*optional*) - request method string, for example: `GET`, `POST`. the default is determined automatically, according to the data
+  - **`mode`**(*optional*) - fetch mode: `cors`, `no-cors`, `same-origin`, the default is determined automatically, according to the data
   - **`timeout`**(*optional*) - a period of time in seconds, after which the request will be aborted
   - **`retry`**(*optional*) - integer count or object with parameters
 - **`callback`**(*optional*) - result handler function, influences return value
@@ -81,7 +82,7 @@ When the callback is present, function returns an instance of `AbortController` 
 
 #### Return value
 
-...
+new [`httpFetch`](https://github.com/determin1st/httpFetch) instance with specified configuration.
 
 
 ## Install
