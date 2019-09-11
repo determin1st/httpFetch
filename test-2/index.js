@@ -2,33 +2,12 @@
 window.addEventListener('load', function() {
     ////
     // prepare
-    var token = {};
-    var url  = 'https://accounts.google.com/o/oauth2/v2/auth';
-    var data = {
-        client_id: '167739649429-tq1c78uvikndmf8sv5c0290rtnrpq771.apps.googleusercontent.com',
-        response_type: 'token',
-        redirect_uri: 'https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html',
-        scope: 'profile'
-    };
-    var iFetch, a, b;
-    ////
-    token = {
-        access_token:"ya29.GluAB4KA23TaSsoEN6jpNlbBs_5qKqy_3tTNDipIBYOQbNJf0b8KvxQ1-R30zbcbOqzJ5FgIxjZKZbZINu-i0cydvZyoCjRu_pR-MPsjYfC1RYeeJcsSf0UJkS7u",
-        token_type:"Bearer",
-        expires_in:"3600",
-        scope:"profile%20https://www.googleapis.com/auth/userinfo.profile"
-    };
-    httpFetch({
-        url: 'https://www.googleapis.com/auth/userinfo.profile',
-        headers: {
-            Authorization: 'Bearer '+token.access_token
-        }
-    }, function(ok, res) {
-        debugger;
-    });
-    return;
-    ////
-    // check token set
+    var token = {}, a, b;
+    var b1  = document.querySelector('button.b1');
+    var b2  = document.querySelector('button.b2');
+    var h1  = document.querySelector('h1');
+    var img = document.querySelector('img');
+    // check
     if (a = window.location.hash)
     {
         // parse token
@@ -37,24 +16,66 @@ window.addEventListener('load', function() {
             a = a.split('=');
             token[a[0]] = a[1];
         });
-        debugger;
-        // clear location and show document body
+        // clear location
         window.location.hash = '';
-        document.body.style.display = '';
-        // create new httpFetch instance
-        iFetch = httpFetch.create({
-            baseUrl: '',
-        });
-        // prepare test
-        document.querySelector('button').addEventListener('click', function(e) {
-        });
+        // done
+        setTimeout(function() {
+            h1.innerText = '';
+            b2.classList.remove('hidden');
+        }, 1000);
     }
     else
     {
-        // redirect
+        // done
+        setTimeout(function() {
+            h1.innerText = '';
+            b1.classList.remove('hidden');
+        }, 1000);
+    }
+    // set handlers
+    b1.addEventListener('click', function(e) {
+        ////
+        // auth redirect
+        var url  = 'https://accounts.google.com/o/oauth2/v2/auth';
+        var data = {
+            client_id: '167739649429-tq1c78uvikndmf8sv5c0290rtnrpq771.apps.googleusercontent.com',
+            response_type: 'token',
+            redirect_uri: 'https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html',
+            //scope: 'profile%20https://www.googleapis.com/auth/drive'
+            scope: 'profile'
+        };
         window.location = url+'?client_id='+data.client_id+
             '&response_type='+data.response_type+
             '&redirect_uri='+data.redirect_uri+
             '&scope='+data.scope;
-    }
+    });
+    b2.addEventListener('click', function(e) {
+        ////
+        // prepare
+        img.classList.remove('exist');
+        img.src = '';
+        h1.innerText = 'fetching..';
+        b2.disabled = true;
+        ////
+        // send request
+        httpFetch({
+            //url: 'https://www.googleapis.com/drive/v3/files',
+            url: 'https://www.googleapis.com/oauth2/v1/userinfo',
+            headers: {
+                Authorization: 'Bearer '+token.access_token
+            }
+        }, function(ok, res) {
+            if (ok)
+            {
+                h1.innerText = res.name;
+                img.src = res.picture;
+            }
+            else
+            {
+                h1.innerText = 'error';
+                console.log(res);
+            }
+            b2.disabled = false;
+        });
+    });
 });
