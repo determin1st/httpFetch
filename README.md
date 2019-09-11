@@ -51,8 +51,9 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 - **`options`** - object with:
   - **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
   - **`data`**(*optional*) - string or serializable object to be sent as the request body
+  - **`headers`**(*optional*) - object with request headers
   - **`method`**(*optional*) - request method string, for example: `GET`, `POST`. the default is determined automatically, according to the data
-  - **`mode`**(*optional*) - fetch mode: `cors`, `no-cors`, `same-origin`, the default is determined automatically, according to the data
+  - **`mode`**(*optional*) - fetch mode: `cors`, `no-cors`, `same-origin`, the default is determined automatically
   - **`timeout`**(*optional*) - a period of time in seconds, after which the request will be aborted
   - **`retry`**(*optional*) - integer count or object with parameters
 - **`callback`**(*optional*) - result handler function, influences return value
@@ -64,12 +65,37 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 When the callback is present, function returns an instance of `AbortController` on success or `null` on failure. `Promise` is returned when callback omitted.
 
 
+#### Example
+
+```JavaScript
+httpFetch({
+    url: 'https://www.googleapis.com/oauth2/v1/userinfo',
+    headers: {
+        Authorization: 'Bearer '+token
+    }
+}, function(ok, res) {
+    if (ok)
+    {
+        console.log(res.name);
+    }
+    else
+    {
+        console.log(res);
+    }
+});
+```
+#### Demo
+
+[Fetching user information from Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html)
+
+
 ## Instance Configuration
 ### `httpFetch.create(config)`
 
 #### Parameters
 
 - **`config`** - object with:
+  - **`headers`**
   - **`baseUrl`**
   - **`status200`**
   - **`noEmpty`**
