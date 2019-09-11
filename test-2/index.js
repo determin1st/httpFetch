@@ -68,7 +68,11 @@ window.addEventListener('load', function() {
             if (ok)
             {
                 h1.innerText = res.name;
-                img.src = res.picture;
+                if (res.picture)
+                {
+                    img.src = res.picture;
+                    img.classList.add('exist');
+                }
             }
             else
             {
