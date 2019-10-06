@@ -14,7 +14,7 @@ httpFetch = function(){
     this.signal = null;
     this.headers = {
       'Accept': 'application/json',
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json; charset=UTF-8'
     };
   };
   FetchError = function(){
@@ -60,13 +60,13 @@ httpFetch = function(){
     this.retry = config.retry;
   };
   HandlerData = function(){
-    this.aborter = new AbortController();
+    this.aborter = null;
     this.timeout = 0;
     this.timer = 0;
     this.retry = new RetryOptions();
   };
   fetchHandler = function(config){
-    var responseHandler, textParser, handler;
+    var responseHandler, textParser, newFormData, handler;
     responseHandler = function(r){
       if (!r.ok || (r.status !== 200 && config.status200)) {
         throw new FetchError(r.statusText, r.status);
@@ -85,6 +85,65 @@ httpFetch = function(){
       }
       return config.noEmpty ? {} : null;
     };
+    newFormData = function(){
+      var add;
+      add = function(data, item, key){
+        var t, i$, len$, k;
+        switch (toString$.call(item).slice(8, -1)) {
+        case 'Object':
+          t = Object.getOwnPropertyNames(item);
+          if (key) {
+            for (i$ = 0, len$ = t.length; i$ < len$; ++i$) {
+              k = t[i$];
+              add(data, item[k], key + '[' + k + ']');
+            }
+          } else {
+            for (i$ = 0, len$ = t.length; i$ < len$; ++i$) {
+              k = t[i$];
+              add(data, item[k], k);
+            }
+          }
+          break;
+        case 'Array':
+          t = item.length;
+          k = -1;
+          if (key) {
+            while (++k < t) {
+              add(data, item[k], key + '[]');
+            }
+          } else {
+            while (++k < t) {
+              add(data, item[k], '');
+            }
+          }
+          break;
+        case 'HTMLInputElement':
+          if (item.type === 'file' && (t = item.files.length)) {
+            add(data, item.files, key);
+          }
+          break;
+        case 'FileList':
+          if ((t = item.length) === 1) {
+            data.append(key, item[0]);
+          } else {
+            k = -1;
+            while (++k < t) {
+              data.append(key + '[]', item[k]);
+            }
+          }
+          break;
+        case 'Null':
+          data.append(key, '');
+          break;
+        default:
+          data.append(key, item);
+        }
+        return data;
+      };
+      return function(o){
+        return add(new FormData(), o, '');
+      };
+    }();
     handler = function(url, options, data, callback){
       if (data.timeout) {
         data.timer = setTimeout(function(){
@@ -152,10 +211,28 @@ httpFetch = function(){
         import$(o.headers, options.headers);
       }
       if (options.data) {
-        o.body = typeof options.data === 'string'
-          ? options.data
-          : JSON.stringify(options.data);
+        a = o.headers['Content-Type'];
+        switch (0) {
+        case a.indexOf('application/json'):
+          o.body = typeof options.data === 'string'
+            ? options.data
+            : JSON.stringify(options.data);
+          break;
+        case a.indexOf('multipart/form-data'):
+          o.body = toString$.call(options.data).slice(8, -1) === 'FormData'
+            ? options.data
+            : newFormData(options.data);
+          delete o.headers['Content-Type'];
+          break;
+        default:
+          if (options.data) {
+            o.body = options.data;
+          }
+        }
       }
+      d.aborter = options.aborter
+        ? options.aborter
+        : new AbortController();
       o.signal = d.aborter.signal;
       a = options.hasOwnProperty('timeout')
         ? options.timeout

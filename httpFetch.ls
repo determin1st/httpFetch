@@ -18,7 +18,7 @@ httpFetch = do ->
 		@signal  = null
 		@headers =
 			'Accept': 'application/json'
-			'Content-Type': 'application/json'
+			'Content-Type': 'application/json; charset=UTF-8'
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
@@ -60,7 +60,7 @@ httpFetch = do ->
 		@retry   = config.retry
 	# }}}
 	HandlerData = !-> # {{{
-		@aborter  = new AbortController!
+		@aborter  = null
 		@timeout  = 0
 		@timer    = 0
 		@retry    = new RetryOptions!
@@ -86,6 +86,59 @@ httpFetch = do ->
 			return if config.noEmpty
 				then {}
 				else null
+		# }}}
+		newFormData = do -> # {{{
+			# prepare recursive helper function
+			add = (data, item, key) ->
+				# check type
+				switch typeof! item
+				case 'Object'
+					# object's own properties are iterated
+					# with the respect to definition order (top to bottom)
+					t = Object.getOwnPropertyNames item
+					if key
+						for k in t
+							add data, item[k], key+'['+k+']'
+					else
+						for k in t
+							add data, item[k], k
+				case 'Array'
+					# the data parameter may be array itself,
+					# in this case it is unfolded to a set of parameters,
+					# otherwise, additional brackets are added to the name,
+					# which is common (for example, to PHP parser)
+					t = item.length
+					k = -1
+					if key
+						while ++k < t
+							add data, item[k], key+'[]'
+					else
+						while ++k < t
+							add data, item[k], ''
+				case 'HTMLInputElement'
+					# file inputs are unfolded to FileLists
+					if item.type == 'file' and t = item.files.length
+						add data, item.files, key
+				case 'FileList'
+					# similar to the Array
+					if (t = item.length) == 1
+						data.append key, item.0
+					else
+						k = -1
+						while ++k < t
+							data.append key+'[]', item[k]
+				case 'Null'
+					# null will become 'null' string when appended,
+					# which is not expected(?!) in most cases, so,
+					# let's cast it to the empty string!
+					data.append key, ''
+				default
+					data.append key, item
+				# done
+				return data
+			# create simple factory
+			return (o) ->
+				return add new FormData!, o, ''
 		# }}}
 		handler = (url, options, data, callback) -> # {{{
 			# set timer
@@ -161,11 +214,33 @@ httpFetch = do ->
 			if options.headers
 				o.headers <<< options.headers
 			# set request data
+			# {{{
 			if options.data
-				o.body = if typeof options.data == 'string'
-					then options.data
-					else JSON.stringify options.data
-			# set aborter signal
+				# check content type
+				a = o.headers['Content-Type']
+				switch 0
+				case a.indexOf 'application/json'
+					# create JSON
+					o.body = if typeof options.data == 'string'
+						then options.data
+						else JSON.stringify options.data
+				case a.indexOf 'multipart/form-data'
+					# create FormData
+					o.body = if typeof! options.data == 'FormData'
+						then options.data
+						else newFormData options.data
+					# remove type header,
+					# because, it conflicts with FormData object body,
+					# despite they are equal (wtf)
+					delete o.headers['Content-Type']
+				default
+					o.body = options.data if options.data
+			# }}}
+			# set aborter
+			d.aborter = if options.aborter
+				then options.aborter
+				else new AbortController!
+			# set abort signal
 			o.signal = d.aborter.signal
 			# set timeout
 			a = if options.hasOwnProperty 'timeout'

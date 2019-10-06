@@ -16,5 +16,5 @@
     "json"
   ],
   "main": "httpFetch.js",
-  "version": "1.0.7"
+  "version": "1.0.8"
 }

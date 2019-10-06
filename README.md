@@ -5,7 +5,7 @@
 *Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser*
 
 
-## Syntax
+## Short syntax
 ### `httpFetch.post(url, data[, callback(ok, res)])`
 ### `httpFetch.get(url[, callback(ok, res)])`
 
@@ -19,7 +19,8 @@
 
 #### Return value
 
-With the callback set, the function returns an instance of [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) on success or `null` on failure. The [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) is returned when callback omitted.
+When the callback is present, function returns an instance of `AbortController` on success or `null` on failure.
+`Promise` is returned otherwise.
 
 
 #### Example
@@ -43,7 +44,7 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 [Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
 
 
-## Extended syntax
+## Syntax
 ### `httpFetch(options[, callback(ok, res)])`
 
 #### Parameters
@@ -56,13 +57,15 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
   - **`mode`**(*optional*) - fetch mode: `cors`, `no-cors`, `same-origin`, the default is determined automatically
   - **`timeout`**(*optional*) - a period of time in seconds, after which the request will be aborted
   - **`retry`**(*optional*) - integer count or object with parameters
+  - **`aborter`**(*optional*) - abort controller to use, enables multiple request cancellation
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
   - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 
 #### Return value
 
-When the callback is present, function returns an instance of `AbortController` on success or `null` on failure. `Promise` is returned when callback omitted.
+When the callback is present, function returns an instance of `AbortController` on success or `null` on failure.
+`Promise` is returned otherwise.
 
 
 #### Example
