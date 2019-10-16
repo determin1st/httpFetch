@@ -2,46 +2,7 @@
 
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
-*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser*
-
-
-## Short syntax
-### `httpFetch.post(url, data[, callback(ok, res)])`
-### `httpFetch.get(url[, callback(ok, res)])`
-
-#### Parameters
-
-- **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
-- **`data`** - string or serializable object to be sent as the request body
-- **`callback`**(*optional*) - result handler function, influences return value
-  - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
-  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
-
-#### Return value
-
-When the callback is present, function returns an instance of `AbortController` on success or `null` on failure.
-`Promise` is returned otherwise.
-
-
-#### Example
-
-```JavaScript
-httpFetch.get('/api/drivers/list', function(ok, res) {
-  if (ok)
-  {
-    // show JSON response from the server
-    console.log(res);
-  }
-  else
-  {
-    // show Error message
-    console.log(res.message);
-  }
-});
-```
-#### Demo
-
-[Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
+*Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) wrapper for the browser (experimental)*
 
 
 ## Syntax
@@ -64,32 +25,25 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
 
 #### Return value
 
-When the callback is present, function returns an instance of `AbortController` on success or `null` on failure.
-`Promise` is returned otherwise.
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback) or [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) on success, [`null`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null) on failure.
 
 
-#### Example
+## Short syntax
+### `httpFetch.post(url, data[, callback(ok, res)])`
+### `httpFetch.get(url[, callback(ok, res)])`
 
-```JavaScript
-httpFetch({
-    url: 'https://www.googleapis.com/oauth2/v1/userinfo',
-    headers: {
-        Authorization: 'Bearer '+token
-    }
-}, function(ok, res) {
-    if (ok)
-    {
-        console.log(res.name);
-    }
-    else
-    {
-        console.log(res);
-    }
-});
-```
-#### Demo
+#### Parameters
 
-[Fetching user information from Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html)
+- **`url`** - request destination string, reference to the web resource (prefixed by **`baseUrl`** config)
+- **`data`** - string or serializable object to be sent as the request body
+- **`callback`**(*optional*) - result handler function, influences return value
+  - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
+  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
+
+#### Return value
+
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback) or [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) on success, [`null`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null) on failure.
+
 
 
 ## Instance Configuration
@@ -111,7 +65,77 @@ httpFetch({
 
 #### Return value
 
-new [`httpFetch`](https://github.com/determin1st/httpFetch) instance with specified configuration.
+new [`httpFetch`](https://github.com/determin1st/httpFetch) instance
+
+
+## Examples
+
+
+#### Get with callback
+```javascript
+httpFetch.get('/api/drivers/list', function(ok, res) {
+  if (ok)
+  {
+    // everything is okay..
+  }
+  else
+  {
+    // some Error occured..
+  }
+});
+```
+#### Get with Promise
+```javascript
+httpFetch.get('/api/drivers/list')
+  .then(function(res) {
+    if (res instanceof Error)
+    {
+      // some Error occured..
+    }
+    else
+    {
+      // everything is okay..
+    }
+  });
+```
+#### Get with async/await
+```javascript
+var res = await httpFetch.get('/api/drivers/list');
+if (res instanceof Error)
+{
+  // some Error occured..
+}
+else
+{
+  // everything is okay..
+}
+```
+#### File upload
+```javascript
+httpFetch({
+    url: 'https://www.googleapis.com/oauth2/v1/userinfo',
+    headers: {
+        Authorization: 'Bearer '+token
+    }
+}, function(ok, res) {
+    if (ok)
+    {
+        console.log(res.name);
+    }
+    else
+    {
+        console.log(res);
+    }
+});
+```
+
+
+## Demos
+
+[Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
+
+[Fetching user information from Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html)
+
 
 
 ## Install

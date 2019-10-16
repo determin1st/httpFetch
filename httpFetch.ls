@@ -60,28 +60,27 @@ httpFetch = do ->
 		@retry   = config.retry
 	# }}}
 	HandlerData = !-> # {{{
-		@aborter  = null
-		@timeout  = 0
-		@timer    = 0
-		@retry    = new RetryOptions!
+		# create object shape
+		# properties
+		@aborter   = null
+		@timeout   = 0
+		@timer     = 0
+		@retry     = new RetryOptions!
+		@promise   = null
+		@resolve   = null
+		# bound methods
+		@timerFunc = !~>
+			@aborter.abort!
+			@timer = 0
 	# }}}
 	fetchHandler = (config) -> # {{{
-		responseHandler = (r) -> # {{{
-			# initial response handler
-			# check for HTTP status
-			if not r.ok or (r.status != 200 and config.status200)
-				throw new FetchError r.statusText, r.status
-			# convert response to text because .json() with empty body
-			# may throw an error in case of no-cors opaque mode (I dont need that bullshit)
-			return r.text!.then textParser
-		# }}}
-		textParser = (r) -> # {{{
+		jsonParser = (r) -> # {{{
 			# parse non-empty as a JSON
 			if r
 				try
 					return JSON.parse r
 				catch e
-					throw new Error 'Incorrect response body: '+e.message+': '+r
+					throw new FetchError 'Incorrect response: '+e.message+': '+r, 0
 			# empty
 			return if config.noEmpty
 				then {}
@@ -141,58 +140,93 @@ httpFetch = do ->
 				return add new FormData!, o, ''
 		# }}}
 		handler = (url, options, data, callback) -> # {{{
-			# set timer
-			if data.timeout
-				data.timer = setTimeout !->
-					data.aborter.abort!
+			responseHandler = (r) -> # {{{
+				# check for HTTP status
+				if not r.ok or (r.status != 200 and config.status200)
+					throw new FetchError r.statusText, r.status
+				# extract response headers
+				h = {}
+				a = r.headers.entries!
+				while not (b = a.next!).done
+					h[b.value.0.toLowerCase!] = b.value.1
+				# determine accepted content type (server setting is preffered)
+				a = if h['content-type']
+					then h['content-type']
+					else options.headers.Accept
+				# check content type
+				switch 0
+				case a.indexOf 'application/json'
+					# not using .json(), because response with empty body
+					# will throw error at no-cors opaque mode (who needs that bullshit?)
+					return r.text!.then jsonParser
+				default
+					# simple text
+					return r.text!
+			# }}}
+			successHandler = (r) !-> # {{{
+				# stop timer
+				if data.timer
+					clearTimeout data.timer
 					data.timer = 0
-				, data.timeout
-			# run
-			fetch url, options
-				.then responseHandler
-				.then (r) !->
-					# stop timer
-					if data.timer
-						clearTimeout data.timer
-						data.timer = 0
-					# success
-					if callback
-						callback true, r
-				.catch (e) !->
-					# stop timer
-					if data.timer
-						clearTimeout data.timer
-						data.timer = 0
-					# failure
-					if callback
-						a = callback false, e
+				# run callback or resolve promise
+				if callback
+					callback true, r
+				else
+					data.resolve r
+				# complete
+			# }}}
+			errorHandler = (e) !-> # {{{
+				# stop timer
+				if data.timer
+					clearTimeout data.timer
+					data.timer = 0
+				# run callback
+				if callback and not callback false, e
+					return
+				# retry?
+				while true
+					# check for incorrect response
+					if not (e instanceof FetchError) or e.status == 0
+						break
+					# check limit
+					if not (a = data.retry).count or a.current < a.count
+						break
+					# determine delay
+					if a.expoBackoff
+						# exponential backoff algorithm
+						# https://cloud.google.com/storage/docs/exponential-backoff
+						b = 2**a.current + Math.floor (1001 * Math.random!)
+						b = a.maxBackoff if b > a.maxBackoff
 					else
-						a = true
-					# retry?
-					if a and (a = data.retry).count and a.current < a.count
-						# determine delay
-						if a.expoBackoff
-							# exponential backoff algorithm
-							# https://cloud.google.com/storage/docs/exponential-backoff
-							b = 2**a.current + Math.floor (1001 * Math.random!)
-							b = a.maxBackoff if b > a.maxBackoff
+						# fixed delay
+						if typeof a.delay == 'number'
+							# simple
+							b = 1000*a.delay
 						else
-							# fixed delay
-							if typeof a.delay == 'number'
-								# simple
-								b = 1000*a.delay
+							# gradual
+							if a.current <= (b = a.delay.length - 1)
+								b = 1000*a.delay[a.current]
 							else
-								# gradual
-								if a.current <= (b = a.delay.length - 1)
-									b = 1000*a.delay[a.current]
-								else
-									b = 1000*a.delay[b]
-						# increase current
-						++a.current
-						# set re-try
-						setTimeout !->
-							handler url, options, data, callback
-						, b
+								b = 1000*a.delay[b]
+					# increase current
+					++a.current
+					# activate re-try
+					setTimeout handlerFunc, b
+					return
+				# check promise
+				if not callback
+					data.resolve e
+				# complete
+			# }}}
+			return handlerFunc = !->
+				# set timer
+				if data.timeout
+					data.timer = setTimeout data.timerFunc, data.timeout
+				# run fetch API
+				fetch url, options
+					.then responseHandler
+					.then successHandler
+					.catch errorHandler
 		# }}}
 		return (options, callback) ->
 			# check parameters
@@ -230,7 +264,7 @@ httpFetch = do ->
 						then options.data
 						else newFormData options.data
 					# remove type header,
-					# because, it conflicts with FormData object body,
+					# as it conflicts with FormData object body,
 					# despite they are equal (wtf)
 					delete o.headers['Content-Type']
 				default
@@ -266,19 +300,20 @@ httpFetch = do ->
 			a.current = 0
 			a.maxBackoff = 1000 * a.maxBackoff
 			# }}}
+			# set promise
+			if not callback
+				d.promise = new Promise (resolve) !->
+					d.resolve = resolve
 			# determine url
 			a = if options.url
 				then config.baseUrl+options.url
 				else config.baseUrl
 			# run
-			handler a, o, d, callback
-			# check
-			if callback
-				return d.aborter
-			# create promise
-			# TODO
-			# ...
-			return null
+			(handler a, o, d, callback)!
+			# done
+			return if callback
+				then d.aborter
+				else d.promise
 	# }}}
 	newInstance = (base) -> (config) -> # {{{
 		# create configuration

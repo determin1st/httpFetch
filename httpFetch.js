@@ -60,27 +60,28 @@ httpFetch = function(){
     this.retry = config.retry;
   };
   HandlerData = function(){
+    var this$ = this;
     this.aborter = null;
     this.timeout = 0;
     this.timer = 0;
     this.retry = new RetryOptions();
+    this.promise = null;
+    this.resolve = null;
+    this.timerFunc = function(){
+      this$.aborter.abort();
+      this$.timer = 0;
+    };
   };
   fetchHandler = function(config){
-    var responseHandler, textParser, newFormData, handler;
-    responseHandler = function(r){
-      if (!r.ok || (r.status !== 200 && config.status200)) {
-        throw new FetchError(r.statusText, r.status);
-      }
-      return r.text().then(textParser);
-    };
-    textParser = function(r){
+    var jsonParser, newFormData, handler;
+    jsonParser = function(r){
       var e;
       if (r) {
         try {
           return JSON.parse(r);
         } catch (e$) {
           e = e$;
-          throw new Error('Incorrect response body: ' + e.message + ': ' + r);
+          throw new FetchError('Incorrect response: ' + e.message + ': ' + r, 0);
         }
       }
       return config.noEmpty ? {} : null;
@@ -145,32 +146,54 @@ httpFetch = function(){
       };
     }();
     handler = function(url, options, data, callback){
-      if (data.timeout) {
-        data.timer = setTimeout(function(){
-          data.aborter.abort();
-          data.timer = 0;
-        }, data.timeout);
-      }
-      return fetch(url, options).then(responseHandler).then(function(r){
+      var responseHandler, successHandler, errorHandler, handlerFunc;
+      responseHandler = function(r){
+        var h, a, b;
+        if (!r.ok || (r.status !== 200 && config.status200)) {
+          throw new FetchError(r.statusText, r.status);
+        }
+        h = {};
+        a = r.headers.entries();
+        while (!(b = a.next()).done) {
+          h[b.value[0].toLowerCase()] = b.value[1];
+        }
+        a = h['content-type']
+          ? h['content-type']
+          : options.headers.Accept;
+        switch (0) {
+        case a.indexOf('application/json'):
+          return r.text().then(jsonParser);
+        default:
+          return r.text();
+        }
+      };
+      successHandler = function(r){
         if (data.timer) {
           clearTimeout(data.timer);
           data.timer = 0;
         }
         if (callback) {
           callback(true, r);
+        } else {
+          data.resolve(r);
         }
-      })['catch'](function(e){
+      };
+      errorHandler = function(e){
         var a, b;
         if (data.timer) {
           clearTimeout(data.timer);
           data.timer = 0;
         }
-        if (callback) {
-          a = callback(false, e);
-        } else {
-          a = true;
+        if (callback && !callback(false, e)) {
+          return;
         }
-        if (a && (a = data.retry).count && a.current < a.count) {
+        for (;;) {
+          if (!(e instanceof FetchError) || e.status === 0) {
+            break;
+          }
+          if (!(a = data.retry).count || a.current < a.count) {
+            break;
+          }
           if (a.expoBackoff) {
             b = Math.pow(2, a.current) + Math.floor(1001 * Math.random());
             if (b > a.maxBackoff) {
@@ -188,11 +211,19 @@ httpFetch = function(){
             }
           }
           ++a.current;
-          setTimeout(function(){
-            handler(url, options, data, callback);
-          }, b);
+          setTimeout(handlerFunc, b);
+          return;
         }
-      });
+        if (!callback) {
+          data.resolve(e);
+        }
+      };
+      return handlerFunc = function(){
+        if (data.timeout) {
+          data.timer = setTimeout(data.timerFunc, data.timeout);
+        }
+        fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+      };
     };
     return function(options, callback){
       var a, o, d, b, c;
@@ -259,14 +290,18 @@ httpFetch = function(){
       }
       a.current = 0;
       a.maxBackoff = 1000 * a.maxBackoff;
+      if (!callback) {
+        d.promise = new Promise(function(resolve){
+          d.resolve = resolve;
+        });
+      }
       a = options.url
         ? config.baseUrl + options.url
         : config.baseUrl;
-      handler(a, o, d, callback);
-      if (callback) {
-        return d.aborter;
-      }
-      return null;
+      handler(a, o, d, callback)();
+      return callback
+        ? d.aborter
+        : d.promise;
     };
   };
   newInstance = function(base){
