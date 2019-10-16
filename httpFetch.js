@@ -81,7 +81,7 @@ httpFetch = function(){
           return JSON.parse(r);
         } catch (e$) {
           e = e$;
-          throw new FetchError('Incorrect response: ' + e.message + ': ' + r, 0);
+          throw new FetchError('Incorrect response: ' + r, 0);
         }
       }
       return config.noEmpty ? {} : null;

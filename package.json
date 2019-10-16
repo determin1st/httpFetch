@@ -1,6 +1,6 @@
 {
   "name": "http-fetch-json",
-  "description": "Individual fetch API wrapper for the browser (alpha)",
+  "description": "Individual fetch API wrapper for the browser",
   "repository": {
     "type": "git",
     "url": "git://github.com/determin1st/httpFetch.git"
@@ -14,8 +14,9 @@
     "http",
     "fetch",
     "json",
-    "FormData"
+    "FormData",
+    "upload"
   ],
   "main": "httpFetch.js",
-  "version": "1.0.9"
+  "version": "1.1.0"
 }

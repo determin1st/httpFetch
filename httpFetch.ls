@@ -80,7 +80,7 @@ httpFetch = do ->
 				try
 					return JSON.parse r
 				catch e
-					throw new FetchError 'Incorrect response: '+e.message+': '+r, 0
+					throw new FetchError 'Incorrect response: '+r, 0
 			# empty
 			return if config.noEmpty
 				then {}
