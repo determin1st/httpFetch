@@ -16,7 +16,7 @@
   - **`headers`**(*optional*) - object with request headers
   - **`method`**(*optional*) - request method string, for example: `GET`, `POST`. the default is determined automatically, according to the data
   - **`mode`**(*optional*) - fetch mode: `cors`, `no-cors`, `same-origin`, the default is determined automatically
-  - **`timeout`**(*optional*) - a period of time in seconds, after which the request will be aborted
+  - **`timeout`**(*optional*) - time to wait for server response (in seconds)
   - **`retry`**(*optional*) - integer count or object with parameters
   - **`aborter`**(*optional*) - abort controller to use, enables multiple request cancellation
 - **`callback`**(*optional*) - result handler function, influences return value
