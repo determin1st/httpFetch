@@ -55,7 +55,7 @@ window.addEventListener('load', main = async function() {
         /***/
         // #3: Random http statuses (except 200=OK)
         // Unfortunately, Chrome/Firefox, both are unable to bring some statuses
-        // to the caller API when CORS is active.. CORSUX!
+        // to the caller API when CORS fails..
         for (var s of [1,2,3,4,5])
         {
             res = await myFetch.get('status/'+s);
