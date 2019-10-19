@@ -15,8 +15,7 @@ window.addEventListener('load', function() {
         token: ''
     };
     // check initial state
-    debugger;
-    if (a = window.location.search && a.indexOf('?code=') === 0)
+    if ((a = window.location.search) && a.indexOf('?code=') === 0)
     {
         // get temporary code
         b = a.substring(1).split('&');
@@ -24,8 +23,6 @@ window.addEventListener('load', function() {
             a = a.split('=');
             data[a[0]] = a[1];
         });
-        // clear location
-        window.location.search = '';
         // show next step
         setTimeout(function() {
             h1.innerText = '';
@@ -53,6 +50,7 @@ window.addEventListener('load', function() {
         // prepare
         h1.innerText = 'exchanging code for token..';
         b2.disabled = true;
+        debugger;
         // send request
         httpFetch({
             url: 'https://github.com/login/oauth/access_token',
