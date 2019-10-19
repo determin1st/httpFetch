@@ -16,9 +16,7 @@ httpFetch = do ->
 		@method  = method
 		@body    = null
 		@signal  = null
-		@headers =
-			'Accept': 'application/json'
-			'Content-Type': 'application/json; charset=UTF-8'
+		@headers = {}
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
@@ -43,7 +41,10 @@ httpFetch = do ->
 		@noEmpty   = false
 		@timeout   = 20
 		@retry     = null
-		@headers   = null
+		@headers   = {
+			'Accept': 'application/json'
+			'Content-Type': 'application/json; charset=UTF-8'
+		}
 	# }}}
 	RetryOptions = !-> # {{{
 		@count        = 15
@@ -243,8 +244,7 @@ httpFetch = do ->
 			d = new HandlerData!
 			# initialize
 			# set headers
-			if config.headers
-				o.headers <<< config.headers
+			o.headers <<< config.headers
 			if options.headers
 				o.headers <<< options.headers
 			# set request data
@@ -357,7 +357,21 @@ httpFetch = do ->
 			# nothing
 			return null
 		set: (me, key, val) ->
-			# ...
+			# set property
+			if me.config.hasOwnProperty key
+				switch key
+				case 'baseURL'
+					# string
+					if typeof val == 'string'
+						me.config[key] = val
+				case 'status200', 'noEmpty'
+					# boolean
+					me.config[key] = !!val
+				case 'timeout'
+					# positive integer
+					if (val = parseInt val) >= 0
+						me.config[key] = val
+			# done
 			return true
 	# }}}
 	return (newInstance null) new Config!

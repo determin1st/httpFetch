@@ -12,10 +12,7 @@ httpFetch = function(){
     this.method = method;
     this.body = null;
     this.signal = null;
-    this.headers = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json; charset=UTF-8'
-    };
+    this.headers = {};
   };
   FetchError = function(){
     var E;
@@ -43,7 +40,10 @@ httpFetch = function(){
     this.noEmpty = false;
     this.timeout = 20;
     this.retry = null;
-    this.headers = null;
+    this.headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=UTF-8'
+    };
   };
   RetryOptions = function(){
     this.count = 15;
@@ -235,9 +235,7 @@ httpFetch = function(){
         : options.data ? 'POST' : 'GET';
       o = new FetchOptions(a);
       d = new HandlerData();
-      if (config.headers) {
-        import$(o.headers, config.headers);
-      }
+      import$(o.headers, config.headers);
       if (options.headers) {
         import$(o.headers, options.headers);
       }
@@ -349,6 +347,23 @@ httpFetch = function(){
       return null;
     },
     set: function(me, key, val){
+      if (me.config.hasOwnProperty(key)) {
+        switch (key) {
+        case 'baseURL':
+          if (typeof val === 'string') {
+            me.config[key] = val;
+          }
+          break;
+        case 'status200':
+        case 'noEmpty':
+          me.config[key] = !!val;
+          break;
+        case 'timeout':
+          if ((val = parseInt(val)) >= 0) {
+            me.config[key] = val;
+          }
+        }
+      }
       return true;
     }
   };
