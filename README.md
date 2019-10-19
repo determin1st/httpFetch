@@ -80,9 +80,21 @@ httpFetch.get('/api/drivers/list', function(ok, res) {
   }
   else
   {
-    // some Error occured..
+    // Error occured..
   }
 });
+```
+#### Get with async/await
+```javascript
+var res = await httpFetch.get('/api/drivers/list');
+if (res instanceof Error)
+{
+  // Error occured..
+}
+else
+{
+  // everything is okay..
+}
 ```
 #### Get with Promise
 ```javascript
@@ -90,7 +102,7 @@ httpFetch.get('/api/drivers/list')
   .then(function(res) {
     if (res instanceof Error)
     {
-      // some Error occured..
+      // Error occured, note, that .catch() is not needed!
     }
     else
     {
@@ -98,44 +110,38 @@ httpFetch.get('/api/drivers/list')
     }
   });
 ```
-#### Get with async/await
+#### Configuring instance
 ```javascript
-var res = await httpFetch.get('/api/drivers/list');
-if (res instanceof Error)
-{
-  // some Error occured..
-}
-else
-{
-  // everything is okay..
-}
+// set previously obtained authorization token to the main instance configuration
+httpFetch.headers.Authorization = 'token '+access_token;
+// all fetches, from now on, will carry this header if not replaced explicitly.
+// ...
 ```
-#### File upload
 ```javascript
-httpFetch({
-    url: 'https://www.googleapis.com/oauth2/v1/userinfo',
-    headers: {
-        Authorization: 'Bearer '+token
-    }
-}, function(ok, res) {
-    if (ok)
-    {
-        console.log(res.name);
-    }
-    else
-    {
-        console.log(res);
-    }
+// this is a safer variant which creates a new instance with derived configuration
+var myFetch = httpFetch.create({
+  headers: {
+    Authorization: 'token '+access_token
+  }
 });
 ```
+
+#### File uploads
+#### Cancellation
+#### Retry
 
 
 ## Demos
 
+*While browsing demos, use F12 devtools console to see more details*.
+
 [Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
 
-[Fetching user information from Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html)
+[Authorizing at Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name/avatar
 
+[Authorizing at GitHub](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail
+
+[Error handling](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
 
 
 ## Install
@@ -149,5 +155,4 @@ NPM:
 ```bash
 $ npm install http-fetch-json
 ```
-
 
