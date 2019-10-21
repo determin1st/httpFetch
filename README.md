@@ -139,9 +139,12 @@ var myFetch = httpFetch.create({
 
 [Authorizing at Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name/avatar
 
-[Authorizing at GitHub](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail
+[Authorizing at GitHub](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([*CORS headers are BROKEN!*](https://github.com/isaacs/github/issues/330))
 
 [Error handling](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
+
+[Self cancellation](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
+
 
 
 ## Install
@@ -155,4 +158,5 @@ NPM:
 ```bash
 $ npm install http-fetch-json
 ```
+
 
