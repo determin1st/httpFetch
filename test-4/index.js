@@ -69,7 +69,7 @@ window.addEventListener('load', function() {
             }
             else
             {
-                h1.innerText = 'error';
+                h1.innerText = 'error (CORSux? disable!)';
                 console.log(res);
             }
         });

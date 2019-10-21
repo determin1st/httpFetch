@@ -87,8 +87,4 @@ window.addEventListener('load', main = async function() {
     a.innerHTML = c;
     // done
     hljs.initHighlighting();
-    /***
-    # execute
-    loadCode 'index.ls', nodeMap.code.0, !->
-    /***/
 });

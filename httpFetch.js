@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, FetchOptions, FetchError, Config, RetryOptions, HandlerOptions, HandlerData, fetchHandler, newInstance, Api, apiHandler;
+  var api, FetchOptions, FetchError, Config, RetryOptions, HandlerOptions, HandlerData, fetchHandler, newPromise, newInstance, Api, apiHandler;
   api = [typeof fetch, typeof AbortController, typeof Proxy];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
@@ -66,7 +66,6 @@ httpFetch = function(){
     this.timer = 0;
     this.retry = new RetryOptions();
     this.promise = null;
-    this.resolve = null;
     this.timerFunc = function(){
       this$.aborter.abort();
       this$.timer = 0;
@@ -175,7 +174,8 @@ httpFetch = function(){
         if (callback) {
           callback(true, r);
         } else {
-          data.resolve(r);
+          data.promise.pending = false;
+          data.promise.resolve(r);
         }
       };
       errorHandler = function(e){
@@ -215,7 +215,8 @@ httpFetch = function(){
           return;
         }
         if (!callback) {
-          data.resolve(e);
+          data.promise.pending = false;
+          data.promise.resolve(e);
         }
       };
       return handlerFunc = function(){
@@ -289,9 +290,7 @@ httpFetch = function(){
       a.current = 0;
       a.maxBackoff = 1000 * a.maxBackoff;
       if (!callback) {
-        d.promise = new Promise(function(resolve){
-          d.resolve = resolve;
-        });
+        d.promise = newPromise(d.aborter);
       }
       a = options.url
         ? config.baseUrl + options.url
@@ -301,6 +300,20 @@ httpFetch = function(){
         ? d.aborter
         : d.promise;
     };
+  };
+  newPromise = function(aborter){
+    var a, b;
+    a = null;
+    b = new Promise(function(resolve){
+      a = resolve;
+    });
+    b.pending = true;
+    b.resolve = a;
+    b.controller = aborter;
+    b.cancel = function(){
+      aborter.abort();
+    };
+    return b;
   };
   newInstance = function(base){
     return function(config){

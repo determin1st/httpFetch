@@ -68,7 +68,6 @@ httpFetch = do ->
 		@timer     = 0
 		@retry     = new RetryOptions!
 		@promise   = null
-		@resolve   = null
 		# bound methods
 		@timerFunc = !~>
 			@aborter.abort!
@@ -173,7 +172,8 @@ httpFetch = do ->
 				if callback
 					callback true, r
 				else
-					data.resolve r
+					data.promise.pending = false
+					data.promise.resolve r
 				# complete
 			# }}}
 			errorHandler = (e) !-> # {{{
@@ -216,7 +216,8 @@ httpFetch = do ->
 					return
 				# check promise
 				if not callback
-					data.resolve e
+					data.promise.pending = false
+					data.promise.resolve e
 				# complete
 			# }}}
 			return handlerFunc = !->
@@ -302,8 +303,7 @@ httpFetch = do ->
 			# }}}
 			# set promise
 			if not callback
-				d.promise = new Promise (resolve) !->
-					d.resolve = resolve
+				d.promise = newPromise d.aborter
 			# determine url
 			a = if options.url
 				then config.baseUrl+options.url
@@ -314,6 +314,19 @@ httpFetch = do ->
 			return if callback
 				then d.aborter
 				else d.promise
+	# }}}
+	newPromise = (aborter) -> # {{{
+		# create standard promise and take out its resolver routine
+		a = null
+		b = new Promise (resolve) !->
+			a := resolve
+		# customize standard promise object
+		b.pending = true
+		b.resolve = a
+		b.controller = aborter
+		b.cancel = !-> aborter.abort!
+		# done
+		return b
 	# }}}
 	newInstance = (base) -> (config) -> # {{{
 		# create configuration
