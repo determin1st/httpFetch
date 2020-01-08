@@ -62,4 +62,5 @@ window.addEventListener('load', main = async function() {
     a.innerHTML = c;
     // done
     hljs.initHighlighting();
+    window.dispatchEvent(new Event('resize'));
 });

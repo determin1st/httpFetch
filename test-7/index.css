@@ -1,0 +1,81 @@
+@font-face
+{
+  font-family: 'TT2020Base';
+  font-style: normal;
+  font-weight: normal;
+  font-display: fallback;
+  src: url('TT2020Base-Regular.woff2') format('woff2');
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /***/
+  display: flex;
+  justify-content: center;
+}
+* {
+  box-sizing: border-box;
+}
+h1,h2 {margin: 0;}
+h1 {font-size: 48px;}
+h2 {font-size: 32px;}
+
+.main
+{
+  width: 100%;
+  max-width: 1000px;
+  padding: 16px;
+}
+button
+{
+  height: 60px;
+  font-family: 'TT2020Base', monospace;
+  font-size: 32px;
+  cursor: pointer;
+  padding: 8px 16px;
+}
+textarea
+{
+  width: 100%;
+  height: 8em;
+  resize: none;
+}
+.message
+{
+  display: flex;
+  /***/
+  align-items: center;
+  /***/
+}
+.message > div
+{
+  flex: 1 1 100%;
+}
+.message > div.client {
+  padding-right: 4px;
+}
+.message > div.cipher {
+}
+.message > div.cipher > textarea {
+  height: 12em;
+}
+.message > div.server {
+  padding-left: 4px;
+}
+pre
+{
+  margin: 0;
+  /***
+  overflow-x: auto;
+  overflow-y: scroll;
+  /***/
+  width: 100%;
+}
+.javascript
+{
+  font-size: 18px;
+}
+
+

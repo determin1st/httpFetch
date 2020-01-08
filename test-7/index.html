@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>encryption tests</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="highlight.css">
+</head>
+<body>
+  <input type="file" accept="image/jpeg" style="display:none;">
+  <div class="main">
+    <h1>Encryption control</h1>
+    <button class="btn handshake">handshake</button>
+    <button class="btn reset" disabled>reset</button>
+    <br><br>
+    <h1>content-type: text/plain</h1>
+    <div class="message">
+      <div class="client">
+        <textarea>sample text</textarea>
+        <textarea placeholder="" disabled></textarea>
+      </div>
+      <div class="cipher">
+        <textarea placeholder="(no shared secret)" disabled></textarea>
+      </div>
+      <div class="server">
+        <textarea disabled></textarea>
+        <textarea placeholder="" disabled></textarea>
+      </div>
+    </div>
+    <button>send</button>
+    <br><br>
+    <h1>Source code</h1>
+    <pre><code class="javascript"></code></pre>
+  </div>
+  <script src="../httpFetch.js"></script>
+  <script src="highlight.js"></script>
+  <script src="index.js"></script>
+</body>
+</html>
