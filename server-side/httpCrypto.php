@@ -11,7 +11,9 @@ class HttpCrypto {
   ###
   private static $me = null, $secret = null, $options = null;
   private $keyPrivate, $keyPublic, $keySecret;
+  private $counter = null;
   public $error = '';
+  public $isEncrypted = false;
   ###
   # singleton constructor pattern
   public static function setOptions(&$secret, $o = []) # {{{
@@ -25,6 +27,8 @@ class HttpCrypto {
         'keyDirectory'   => __DIR__.DIRECTORY_SEPARATOR.'keys',
         'keyFilePrivate' => 'private.pem',
         'keyFilePublic'  => 'public.pem',
+        'outputError'    => true,
+        'headerName'     => 'HTTP_CONTENT_ENCODING',
       ];
     }
     # apply parameter
@@ -83,109 +87,121 @@ class HttpCrypto {
       # convert string to binary data
       $this->keySecret = hex2bin(self::$secret);
     }
+    # check specific request header
+    $a = $o['headerName'];
+    $b = 'aes256gcm';
+    if (array_key_exists($a, $_SERVER) && strpos($_SERVER[$a], $b) === 0)
+    {
+      # request data is encrypted!
+      # set flag
+      $this->isEncrypted = true;
+      # set counter
+      if (($a = substr($_SERVER[$a], strlen($b))) !== false && !empty($a)) {
+        $this->counter = strval($a);
+      }
+    }
   }
   # }}}
   ###
   # Diffie-Hellman key exchange
   public function handshake() # {{{
   {
-    # clear output buffer
-    if (ob_get_level() !== 0) {
-      ob_end_clean();
-    }
-    # check headers
-    if (headers_sent())
+    try
     {
-      $this->error = 'headers already sent';
-      return false;
-    }
-    # check request's content-type and content-encoding
-    if (!array_key_exists('CONTENT_TYPE', $_SERVER))
-    {
-      $this->error = 'content-type is not specified';
-      return false;
-    }
-    if (strpos(strtolower($_SERVER['CONTENT_TYPE']), 'application/octet-stream') !== 0)
-    {
-      $this->error = 'incorrect content-type';
-      return false;
-    }
-    if (!array_key_exists('HTTP_CONTENT_ENCODING', $_SERVER))
-    {
-      $this->error = 'content-encoding is not specified';
-      return false;
-    }
-    # determine handshake stage
-    switch (strtolower($_SERVER['HTTP_CONTENT_ENCODING'])) {
-    case '':
-      $a = true;
-      break;
-    case 'aes256gcm':
-      $a = false;
-      break;
-    default:
-      $this->error = 'incorrect content-encoding';
-      return false;
-    }
-    # get request data
-    if (($data = file_get_contents('php://input')) === false)
-    {
-      $this->error = 'failed to read request data';
-      return false;
-    }
-    # handle request
-    if ($a)
-    {
-      # EXCHANGE
-      # create shared secret and get own public key
-      if (($a = $this->newSharedSecret($data)) === null) {
-        return false;
+      # clear output buffers
+      if (ob_get_level() !== 0) {
+        ob_end_clean();
       }
-    }
-    else
-    {
-      # VERIFY
-      # check secret exists
-      if ($this->keySecret === null)
+      # check headers
+      if (headers_sent()) {
+        throw new Exception('headers already sent');
+      }
+      # check request's content-type and content-encoding
+      if (!array_key_exists('CONTENT_TYPE', $_SERVER)) {
+        throw new Exception('content-type is not specified');
+      }
+      if (strpos(strtolower($_SERVER['CONTENT_TYPE']), 'application/octet-stream') !== 0) {
+        throw new Exception('incorrect content-type');
+      }
+      if (!array_key_exists('HTTP_CONTENT_ENCODING', $_SERVER)) {
+        throw new Exception('content-encoding is not specified');
+      }
+      # determine handshake stage
+      switch (strtolower($_SERVER['HTTP_CONTENT_ENCODING'])) {
+      case 'exchange':
+        $a = true;
+        break;
+      case 'verify':
+        $a = false;
+        break;
+      default:
+        throw new Exception('incorrect content-encoding');
+      }
+      # get request data
+      if (($data = file_get_contents('php://input')) === false) {
+        throw new Exception('failed to read request data');
+      }
+      # handle request
+      if ($a)
       {
-        $this->error = 'no shared secret';
-        return false;
+        # EXCHANGE
+        # create shared secret and get own public key
+        $result = $this->newSharedSecret($data);
       }
-      # decrypt message and
-      # calculate confirmation hash
-      if (($a = $this->decrypt($data)) === false)
+      else
       {
-        # decryption failed..
-        $this->error = 'handshake verification failed';
-        # the handshake attempt may be repeated
-        # set an empty, but positive response!
-        $a = '';
-      }
-      else if (($a = openssl_digest($a, 'SHA512', true)) === false)
-      {
-        $this->error = 'hash-function failed';
-        return false;
+        # VERIFY
+        # check secret exists
+        if ($this->keySecret === null) {
+          throw new Exception('secret not found');
+        }
+        # decrypt message and
+        # calculate confirmation hash
+        if (($a = $this->decrypt($data)) === false)
+        {
+          # decryption failed..
+          $this->error = 'handshake verification failed';
+          # no error thrown and empty response will be treated as positive,
+          # that's how handshake attempt may be repeated
+          $result = '';
+        }
+        else if (($result = openssl_digest($a, 'SHA512', true)) === false) {
+          throw new Exception('hash-function failed');
+        }
       }
     }
-    # send the response
+    catch (Exception $e)
+    {
+      $result = null;
+      $this->error = $e->getMessage();
+    }
+    # send negative response
+    if ($result === null)
+    {
+      if (self::$options['outputError'])
+      {
+        header('content-type: text/plain');
+        echo $this->error; flush();
+      }
+      return false;
+    }
+    # send positive response
     header('content-type: application/octet-stream');
-    echo $a; flush();
-    # done
+    echo $result; flush();
     return true;
   }
   # }}}
   private function newSharedSecret($remotePublicKey) # {{{
   {
     # load server keys
-    $keyPrivate = file_get_contents($this->keyPrivate);
-    $keyPublic  = file_get_contents($this->keyPublic);
-    if ($keyPrivate === false || $keyPublic === false)
-    {
-      $this->error = 'failed to read server keys';
-      return null;
+    if (($keyPrivate = file_get_contents($this->keyPrivate)) === false) {
+      throw new Exception('failed to read private key');
     }
-    // initialize PHPECC serializers
-    // ECDSA domain is defined by curve/generator/hash algorithm
+    if (($keyPublic = file_get_contents($this->keyPublic)) === false) {
+      throw new Exception('failed to read public key');
+    }
+    # initialize PHPECC serializers
+    # ECDSA domain is defined by curve/generator/hash algorithm
     $adapter   = EccFactory::getAdapter();
     $generator = EccFactory::getNistCurves()->generator384();
     $derPub    = new DerPublicKeySerializer();
@@ -203,12 +219,84 @@ class HttpCrypto {
     $secret = substr($secret, 0, 32+12);# key + iv/counter
     # store secret
     self::$secret = bin2hex($secret);
-    # complete
+    # complete with public key
     return $derPub->serialize($keyPublic);
   }
   # }}}
   ###
   # AES GCM encryption/decryption
+  public function decryptRequest() # {{{
+  {
+    # check flag
+    if (!$this->isEncrypted) {
+      return null;
+    }
+    # get content type
+    $type = isset($_SERVER['CONTENT_TYPE']) ? strtolower($_SERVER['CONTENT_TYPE']) : '';
+    $json = false;
+    # check it and
+    # get encrypted data
+    switch (0) {
+    case strpos($type, 'application/json'):
+      $json = true;
+    case strpos($type, 'application/octet-stream'):
+    case strpos($type, 'text/plain'):
+      # JSON or RAW or TEXT
+      $data = file_get_contents('php://input');
+      break;
+    case strpos($type, 'application/x-www-form-urlencoded'):
+    case strpos($type, 'multipart/form-data'):
+      # JSON in FormData
+      if (!array_key_exists('json', $_REQUEST)) {
+        return null;
+      }
+      $data = $_REQUEST['json'];
+      $json = true;
+      break;
+    default:
+      # UNSUPPORTED
+      return null;
+    }
+    # check empty
+    if (empty($data)) {
+      return [];
+    }
+    # get etag and modify counter
+    if (array_key_exists('HTTP_ETAG', $_SERVER))
+    {
+    }
+    # decrypt
+    # ...
+    # decode json to array
+    return $json ? json_decode($data, true) : $data;
+  }
+  # }}}
+  public function encryptResponse($data) # {{{
+  {
+    $result = null;
+    try
+    {
+      # check secret exists
+      if ($this->keySecret === null) {
+        throw new Exception('secret not found');
+      }
+      # check parameter
+      if (!is_string($data)) {
+        throw new Exception('incorrect parameter type');
+      }
+      if (empty($data)) {
+        $result = '';
+      }
+      else
+      {
+      }
+    }
+    catch (Exception $e) {
+      $this->error = $e->getMessage();
+    }
+    return $result;
+  }
+  # }}}
   private function decrypt($data) # {{{
   {
     # extract key and iv
@@ -218,8 +306,8 @@ class HttpCrypto {
     $tag  = substr($data, -16);
     $data = substr($data, 0, strlen($data) - 16);
     # decrypt aes256gcm binary data
-    return openssl_decrypt($data, 'aes-256-gcm', $key,
-                           OPENSSL_RAW_DATA, $iv, $tag);
+    return @openssl_decrypt($data, 'aes-256-gcm', $key,
+                            OPENSSL_RAW_DATA, $iv, $tag);
   }
   # }}}
   function crypto_encrypt($data, $secret) # {{{

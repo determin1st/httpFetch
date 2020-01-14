@@ -11,24 +11,26 @@
   <input type="file" accept="image/jpeg" style="display:none;">
   <div class="main">
     <h1>Encryption control</h1>
-    <button class="btn handshake">handshake</button>
-    <button class="btn reset" disabled>reset</button>
+    <div class="control">
+      <textarea placeholder="(no shared secret)" disabled></textarea>
+      <button class="b1">handshake</button>
+      <button class="b2" disabled>reset</button>
+    </div>
     <br><br>
     <h1>content-type: text/plain</h1>
-    <div class="message">
+    <div class="message text">
       <div class="client">
         <textarea>sample text</textarea>
         <textarea placeholder="" disabled></textarea>
       </div>
-      <div class="cipher">
-        <textarea placeholder="(no shared secret)" disabled></textarea>
+      <div class="action">
+        <button>send</button>
       </div>
       <div class="server">
         <textarea disabled></textarea>
         <textarea placeholder="" disabled></textarea>
       </div>
     </div>
-    <button>send</button>
     <br><br>
     <h1>Source code</h1>
     <pre><code class="javascript"></code></pre>

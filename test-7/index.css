@@ -14,11 +14,12 @@ html, body {
   /***/
   display: flex;
   justify-content: center;
+  background-color: black;
 }
 * {
   box-sizing: border-box;
 }
-h1,h2 {margin: 0;}
+h1,h2 {margin: 0; color: skyblue;}
 h1 {font-size: 48px;}
 h2 {font-size: 32px;}
 
@@ -35,34 +36,55 @@ button
   font-size: 32px;
   cursor: pointer;
   padding: 8px 16px;
+  background-color: darkslategray;
+  color: lightgray;
+  outline-color: mediumspringgreen;
+}
+button:disabled {
+  color: black;
+  background-color: black;
+}
+button:not(:disabled):hover {
+  color: rgb(64, 255, 64);
+}
+button:active {
+  background-color: black;
 }
 textarea
 {
   width: 100%;
   height: 8em;
   resize: none;
+  margin: 2px 0;
+  padding: 8px 12px;
+  background-color: black;
+  color: rgb(64, 255, 64);
+  outline-color: mediumspringgreen;
+}
+textarea::placeholder
+{
+  color: lightgray;
 }
 .message
 {
   display: flex;
-  /***/
-  align-items: center;
-  /***/
 }
 .message > div
 {
   flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
 }
-.message > div.client {
-  padding-right: 4px;
+.message > div.client {}
+.message > div.server {}
+.message > div.action {
+  padding: 8px 4px;
 }
-.message > div.cipher {
-}
-.message > div.cipher > textarea {
-  height: 12em;
-}
-.message > div.server {
-  padding-left: 4px;
+.message > div.action > button
+{
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 pre
 {

@@ -625,6 +625,13 @@ httpFetch = do ->
 			# checkout current state
 			if handshakeLocked
 				return false
+			# reset
+			if not storeManager
+				if a = handler.config.secret
+					handler.config.secret = null
+					a.manager ''
+				return true
+			# lock
 			handshakeLocked := true
 			# checkout shared secret
 			if a = storeManager!
@@ -662,7 +669,7 @@ httpFetch = do ->
 					headers: {
 						'accept': 'application/octet-stream'
 						'content-type': 'application/octet-stream'
-						'content-encoding': ''
+						'content-encoding': 'exchange'
 					}
 					timeout: 0
 				}
@@ -686,7 +693,7 @@ httpFetch = do ->
 					break
 				# STAGE 2: VERIFY
 				# encrypt first hash
-				b.headers['content-encoding'] = 'aes256gcm'
+				b.headers['content-encoding'] = 'verify'
 				if (b.data = await k.encrypt hash.0) == null
 					break
 				# send it
@@ -710,7 +717,7 @@ httpFetch = do ->
 			# update configuration
 			if x
 				handler.config.secret = k
-				storeManager k.current
+				k.manager k.current
 			# done
 			handshakeLocked := false
 			return x

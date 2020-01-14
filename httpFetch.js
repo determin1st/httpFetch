@@ -588,6 +588,13 @@ httpFetch = function(){
       if (handshakeLocked) {
         return false;
       }
+      if (!storeManager) {
+        if (a = handler.config.secret) {
+          handler.config.secret = null;
+          a.manager('');
+        }
+        return true;
+      }
       handshakeLocked = true;
       if (a = storeManager()) {
         a = apiCrypto.base64ToBuf(a);
@@ -615,7 +622,7 @@ httpFetch = function(){
           headers: {
             'accept': 'application/octet-stream',
             'content-type': 'application/octet-stream',
-            'content-encoding': ''
+            'content-encoding': 'exchange'
           },
           timeout: 0
         };
@@ -637,7 +644,7 @@ httpFetch = function(){
         if ((k = (await apiCrypto.newSecret(a, storeManager))) === null) {
           break;
         }
-        b.headers['content-encoding'] = 'aes256gcm';
+        b.headers['content-encoding'] = 'verify';
         if ((b.data = (await k.encrypt(hash[0]))) === null) {
           break;
         }
@@ -663,7 +670,7 @@ httpFetch = function(){
       }
       if (x) {
         handler.config.secret = k;
-        storeManager(k.current);
+        k.manager(k.current);
       }
       handshakeLocked = false;
       return x;

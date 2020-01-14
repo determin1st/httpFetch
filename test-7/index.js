@@ -2,54 +2,89 @@
 var main;
 window.addEventListener('load', main = async function() {
     /*CODE*/
-    ////
+    ///
+    // encryption control
     // prepare
-    var bHandshake = document.querySelector('button.handshake');
-    var bReset     = document.querySelector('button.reset');
-    var tSecret    = document.querySelector('div.cipher > textarea');
+    var tSecret = document.querySelector('.control > textarea');
+    var bHand   = document.querySelector('.control > .b1');
+    var bReset  = document.querySelector('.control > .b2');
     var myFetch = httpFetch.create({
         baseUrl: 'http://localhost:8081/api/test/'
     });
     var secretManager = function(key) {
-        var a,b;
-        ////
-        // check parameter
-        if (key) {
-            // save secret key
-            window.localStorage.setItem('secret', key);
-            // display key information
-            a = help.base64ToBuf(key);
-            b = a.slice(0, 12);
-            a = a.slice(0, 32);
-            tSecret.value = "AES GCM encryption enabled\n\n"+
-                "Cipher key(256bit): "+help.bufToHex(a)+"\n\n"+
-                "Counter/IV(96bit): "+help.bufToHex(b)+"\n";
+        var a, b, c;
+        ///
+        // saves or restores shared secret
+        // the argument determines the type of operation (get or set),
+        // the browser's local storage is used here
+        if (key === '')
+        {
+            // reset
+            window.localStorage.removeItem('secret');
         }
-        else {
-            // restore secret key
+        else if (key)
+        {
+            // set
+            window.localStorage.setItem('secret', key);
+            c = ' (exchange)';
+        }
+        else
+        {
+            // get
             if ((key = window.localStorage.getItem('secret')) === null) {
                 key = '';
             }
+            c = ' (localstorage)';
         }
+        // display key information
+        if (key)
+        {
+            a = help.base64ToBuf(key);
+            b = a.slice(32);
+            a = a.slice(0, 32);
+            tSecret.value = "AES GCM encryption enabled"+c+"\n\n"+
+                "Cipher key (256bit): "+help.bufToHex(a)+"\n"+
+                "Counter/IV  (96bit): "+help.bufToHex(b)+"\n";
+        }
+        else {
+            tSecret.value = '';
+        }
+        // done
         return key;
     };
     // set event handlers
-    bHandshake.addEventListener('click', async function(e) {
-        ////
-        // lock
+    bHand.addEventListener('click', async function(e) {
+        ///
+        // lock button
         this.disabled = true;
-        // exchange public keys and establish shared secret
-        if (await myFetch.handshake('ecdh', secretManager)) {
-            // enable reset
+        // establish shared secret
+        if (await myFetch.handshake('ecdh', secretManager))
+        {
+            // unlock reset
             bReset.disabled = false;
         }
         else
         {
-            // clear key information
-            tSecret.value = '';
-            // unlock
+            // reset on failure
             this.disabled = false;
+            tSecret.value = '';
         }
+    });
+    bReset.addEventListener('click', function(e) {
+        ///
+        // reset
+        this.disabled  = true;
+        bHand.disabled = false;
+        tSecret.value  = '';
+        myFetch.handshake();
+    });
+    ///
+    // content-type: plain/text
+    // preapre
+    var bSend = document.querySelector('.message.text button');
+    var tArea = [...document.querySelectorAll('.message.text textarea')];
+    // set event handler
+    bSend.addEventListener('click', function(e) {
     });
     /*CODE*/
     var help = {
