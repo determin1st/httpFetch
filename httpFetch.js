@@ -407,10 +407,7 @@ httpFetch = function(){
         }
         data.response.status = r.status;
         data.response.headers = h;
-        if (a = h['content-encoding']) {
-          if (a !== 'aes256gcm') {
-            throw new FetchError('incorrect content-encoding', r.status);
-          }
+        if ((a = h['content-encoding']) === 'aes256gcm') {
           if (!config.secret) {
             throw new FetchError('unable to decrypt, no shared secret', r.status);
           }
@@ -431,7 +428,7 @@ httpFetch = function(){
         res = data.response;
         sec = config.secret;
         if (sec) {
-          if (d && res.headers['content-encoding']) {
+          if (d && res.headers['content-encoding'] === 'aes256gcm') {
             if ((a = (await sec.next().decrypt(d))) === null) {
               sec.manager('error');
               throw new FetchError('failed to decrypt the response', res.status);

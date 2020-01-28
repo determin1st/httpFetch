@@ -419,11 +419,8 @@ httpFetch = do ->
 				data.response.status  = r.status
 				data.response.headers = h
 				# check encoding
-				if a = h['content-encoding']
+				if (a = h['content-encoding']) == 'aes256gcm'
 					# ENCRYPTED!
-					# the only valid encoding is encryption
-					if a != 'aes256gcm'
-						throw new FetchError 'incorrect content-encoding', r.status
 					# secret key must exist
 					if not config.secret
 						throw new FetchError 'unable to decrypt, no shared secret', r.status
@@ -453,7 +450,7 @@ httpFetch = do ->
 				# check if encryption enabled
 				if sec
 					# check if the response encrypted
-					if d and res.headers['content-encoding']
+					if d and res.headers['content-encoding'] == 'aes256gcm'
 						# advance counter and
 						# decrypt it
 						if (a = await sec.next!decrypt d) == null
