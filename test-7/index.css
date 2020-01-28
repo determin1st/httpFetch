@@ -1,10 +1,14 @@
 @font-face
 {
-  font-family: 'TT2020Base';
-  font-style: normal;
-  font-weight: normal;
+  font-family: 'FT40';
   font-display: fallback;
-  src: url('TT2020Base-Regular.woff2') format('woff2');
+  src: url('ft40.ttf') format('truetype');
+}
+@font-face
+{
+  font-family: 'PS2P';
+  font-display: fallback;
+  src: url('PressStart2P.ttf') format('truetype');
 }
 html, body {
   width: 100%;
@@ -19,9 +23,40 @@ html, body {
 * {
   box-sizing: border-box;
 }
-h1,h2 {margin: 0; color: skyblue;}
-h1 {font-size: 48px;}
-h2 {font-size: 32px;}
+h1,h2,h3 {
+  margin: 0;
+  color: skyblue;
+  /***/
+  font-family: FT40, Arial Black, serif;
+  font-weight: normal;
+  /***/
+}
+h1 {
+  font-size: 48px;
+  padding-bottom: 10px;
+  text-align: center;
+}
+h2 {
+  font-size: 32px;
+  padding-bottom: 8px;
+}
+h3 {
+  font-size: 18px;
+  padding-bottom: 2px;
+}
+img {
+  width: 100%;
+  height: auto;
+}
+p,ul {
+  font-family: PS2P, FT40, serif;
+  color: mediumspringgreen;
+  margin: 0;
+  padding: 0 12px;
+}
+ul {
+  margin-left: 16px;
+}
 
 .main
 {
@@ -32,7 +67,7 @@ h2 {font-size: 32px;}
 button
 {
   height: 60px;
-  font-family: 'TT2020Base', monospace;
+  font-family: PS2P, monospace;
   font-size: 32px;
   cursor: pointer;
   padding: 8px 16px;
@@ -60,14 +95,25 @@ textarea
   background-color: black;
   color: rgb(64, 255, 64);
   outline-color: mediumspringgreen;
+  font-family: monospace;
+  font-size: 14px;
 }
 textarea::placeholder
 {
   color: lightgray;
 }
-.message
+.test
+{
+  width: 100%;
+}
+.test > div
 {
   display: flex;
+  width: 100%;
+}
+.title > h3
+{
+  flex: 1 1 100%;
 }
 .message > div
 {

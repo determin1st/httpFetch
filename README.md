@@ -21,7 +21,7 @@
   - **`aborter`**(*optional*) - abort controller to use, enables multiple request cancellation
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
-  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
+  - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 
 #### Return value
 
@@ -38,7 +38,7 @@
 - **`data`** - string or serializable object to be sent as the request body
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
-  - **`res`** - server response object (influenced by **`noEmpty`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
+  - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 
 #### Return value
 
@@ -55,7 +55,7 @@
   - **`headers`**
   - **`baseUrl`**
   - **`status200`**
-  - **`noEmpty`**
+  - **`notNull`**
   - **`timeout`**
   - **`retry`**
     - **`count`** - positive integer, `15` attempts by default

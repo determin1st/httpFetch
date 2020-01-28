@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>encryption tests</title>
+  <title>crypto test 1</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="index.css">
@@ -10,30 +10,43 @@
 <body>
   <input type="file" accept="image/jpeg" style="display:none;">
   <div class="main">
-    <h1>Encryption control</h1>
+    <h1>Web Crypto API</h1>
+    <h2>encryption control</h2>
     <div class="control">
       <textarea placeholder="(no shared secret)" disabled></textarea>
       <button class="b1">handshake</button>
       <button class="b2" disabled>reset</button>
     </div>
     <br><br>
-    <h1>content-type: text/plain</h1>
-    <div class="message text">
-      <div class="client">
-        <textarea>sample text</textarea>
-        <textarea placeholder="" disabled></textarea>
+    <h2>content-type: text/plain</h2>
+    <div class="test n1">
+      <div class="title">
+        <h3>Request:</h3>
+        <h3></h3>
+        <h3>Response:</h3>
       </div>
-      <div class="action">
-        <button>send</button>
-      </div>
-      <div class="server">
-        <textarea disabled></textarea>
-        <textarea placeholder="" disabled></textarea>
+      <div class="message">
+        <div class="client">
+          <textarea>sample text</textarea>
+          <h3>Ecrypted to:</h3>
+          <textarea placeholder="" disabled></textarea>
+        </div>
+        <div class="action">
+          <button>send</button>
+        </div>
+        <div class="server">
+          <textarea disabled></textarea>
+          <h3>Decrypted from:</h3>
+          <textarea placeholder="" disabled></textarea>
+        </div>
       </div>
     </div>
     <br><br>
-    <h1>Source code</h1>
+    <h2>source code</h2>
     <pre><code class="javascript"></code></pre>
+    <br><br>
+    <h2>request/response sheme</h2>
+    <img alt="sheme" src="req-res.jpg">
   </div>
   <script src="../httpFetch.js"></script>
   <script src="highlight.js"></script>

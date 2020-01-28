@@ -13,7 +13,8 @@ class HttpCrypto {
   private $keyPrivate, $keyPublic, $keySecret;
   private $counter = null;
   public $error = '';
-  public $isEncrypted = false;
+  public $encrypted = false;
+  public $rotten = false;
   ###
   # singleton constructor pattern
   public static function setOptions(&$secret, $o = []) # {{{
@@ -28,7 +29,6 @@ class HttpCrypto {
         'keyFilePrivate' => 'private.pem',
         'keyFilePublic'  => 'public.pem',
         'outputError'    => true,
-        'headerName'     => 'HTTP_CONTENT_ENCODING',
       ];
     }
     # apply parameter
@@ -79,25 +79,28 @@ class HttpCrypto {
     $this->keyPrivate = $a;
     $this->keyPublic  = $b;
     # set secret key
-    if (empty(self::$secret) || strlen(self::$secret) !== 88) {
+    if (strlen(self::$secret) !== 88) {
       # no secret
       $this->keySecret = null;
     }
     else {
-      # convert string to binary data
+      # convert string to binary
       $this->keySecret = hex2bin(self::$secret);
     }
-    # check specific request header
-    $a = $o['headerName'];
-    $b = 'aes256gcm';
-    if (array_key_exists($a, $_SERVER) && strpos($_SERVER[$a], $b) === 0)
+    # check specific request headers
+    $a = 'HTTP_CONTENT_ENCODING';
+    $b = 'HTTP_ETAG';
+    if (array_key_exists($a, $_SERVER) && $_SERVER[$a] === 'aes256gcm')
     {
       # request data is encrypted!
       # set flag
-      $this->isEncrypted = true;
-      # set counter
-      if (($a = substr($_SERVER[$a], strlen($b))) !== false && !empty($a)) {
-        $this->counter = strval($a);
+      $this->encrypted = true;
+      # set counter value
+      if (array_key_exists($b, $_SERVER) &&
+          strlen($_SERVER[$b]) === 4 &&
+          ($a = @hex2bin($_SERVER[$b])) !== false)
+      {
+        $this->counter = $a;
       }
     }
   }
@@ -108,10 +111,6 @@ class HttpCrypto {
   {
     try
     {
-      # clear output buffers
-      if (ob_get_level() !== 0) {
-        ob_end_clean();
-      }
       # check headers
       if (headers_sent()) {
         throw new Exception('headers already sent');
@@ -123,11 +122,11 @@ class HttpCrypto {
       if (strpos(strtolower($_SERVER['CONTENT_TYPE']), 'application/octet-stream') !== 0) {
         throw new Exception('incorrect content-type');
       }
-      if (!array_key_exists('HTTP_CONTENT_ENCODING', $_SERVER)) {
-        throw new Exception('content-encoding is not specified');
+      if (!array_key_exists('HTTP_ETAG', $_SERVER)) {
+        throw new Exception('etag is not specified');
       }
       # determine handshake stage
-      switch (strtolower($_SERVER['HTTP_CONTENT_ENCODING'])) {
+      switch (strtolower($_SERVER['HTTP_ETAG'])) {
       case 'exchange':
         $a = true;
         break;
@@ -135,7 +134,7 @@ class HttpCrypto {
         $a = false;
         break;
       default:
-        throw new Exception('incorrect content-encoding');
+        throw new Exception('incorrect etag');
       }
       # get request data
       if (($data = file_get_contents('php://input')) === false) {
@@ -181,13 +180,13 @@ class HttpCrypto {
       if (self::$options['outputError'])
       {
         header('content-type: text/plain');
-        echo $this->error; flush();
+        echo $this->error;
       }
       return false;
     }
     # send positive response
     header('content-type: application/octet-stream');
-    echo $result; flush();
+    echo $result;
     return true;
   }
   # }}}
@@ -227,72 +226,202 @@ class HttpCrypto {
   # AES GCM encryption/decryption
   public function decryptRequest() # {{{
   {
-    # check flag
-    if (!$this->isEncrypted) {
-      return null;
-    }
-    # get content type
-    $type = isset($_SERVER['CONTENT_TYPE']) ? strtolower($_SERVER['CONTENT_TYPE']) : '';
-    $json = false;
-    # check it and
-    # get encrypted data
-    switch (0) {
-    case strpos($type, 'application/json'):
-      $json = true;
-    case strpos($type, 'application/octet-stream'):
-    case strpos($type, 'text/plain'):
-      # JSON or RAW or TEXT
-      $data = file_get_contents('php://input');
-      break;
-    case strpos($type, 'application/x-www-form-urlencoded'):
-    case strpos($type, 'multipart/form-data'):
-      # JSON in FormData
-      if (!array_key_exists('json', $_REQUEST)) {
-        return null;
-      }
-      $data = $_REQUEST['json'];
-      $json = true;
-      break;
-    default:
-      # UNSUPPORTED
-      return null;
-    }
-    # check empty
-    if (empty($data)) {
-      return [];
-    }
-    # get etag and modify counter
-    if (array_key_exists('HTTP_ETAG', $_SERVER))
+    $R = null;
+    try
     {
+      # check flag
+      if (!$this->encrypted) {
+        throw new Exception('');
+      }
+      # check secret key
+      if ($this->keySecret === null) {
+        throw new Exception('shared secret must be established');
+      }
+      # check counter
+      if ($this->counter === null) {
+        throw new Exception('counter is not set');
+      }
+      ###
+      # get content type
+      $type = isset($_SERVER['CONTENT_TYPE']) ?
+        strtolower($_SERVER['CONTENT_TYPE']) : '';
+      # determine content type group
+      if (strpos($type, 'application/octet-stream') === 0 ||
+          strpos($type, 'text/plain') === 0)
+      {
+        $type = 0;
+      }
+      else if (strpos($type, 'application/json') === 0) {
+        $type = 1;
+      }
+      else if (strpos($type, 'multipart/form-data') === 0)
+      {
+        if (!array_key_exists('json', $_REQUEST)) {
+          throw new Exception('incorrect request, required parameter key does not exist');
+        }
+        $type = 2;
+      }
+      else {
+        throw new Exception('given content-type is not supported');
+      }
+      ###
+      # get encrypted data
+      $data = ($type === 2) ?
+        $_REQUEST['json'] : file_get_contents('php://input');
+      # check empty
+      if (!is_string($data) || $data === '') {
+        throw new Exception('incorrect request, data must not be empty');
+      }
+      ###
+      # determine new secret
+      # prepare
+      $counterLimit = '1208925819614629174706176';# maximum + 1
+      # public part of the counter is set by the client and
+      # mirrored by the server to handle AES GCM protocol
+      # extract all parts of the counter
+      $a = gmp_import(substr($this->keySecret, -12, 10));
+      $b = gmp_intval(gmp_import(substr($this->keySecret, -2)));
+      $c = gmp_intval(gmp_import($this->counter));
+      # check the difference
+      if (($d = $c - $b) >= 0)
+      {
+        # positive value is perfectly fine,
+        # the client's counter is ahead of the server's or equals,
+        # later assumes repetition of the request.
+        # increase!
+        $a = gmp_add($a, $d);
+      }
+      else
+      {
+        # negative value may fall in two cases:
+        # - overflow of the public, smaller counter part,
+        #   which is alright, no problemo situation.
+        # - previous request/response failure,
+        #   which may break further key usage if
+        #   the failure collide with counter overflow.
+        # determine distances
+        $c = 65536 + $c - $b;
+        $d = abs($d);
+        # check the case optimistically
+        if ($c <= $d)
+        {
+          # increase (overflow)
+          $a = gmp_add($a, $c);
+        }
+        else
+        {
+          # decrease (failure)
+          $a = gmp_sub($a, $d);
+          # check bottom overflow (should be super rare)
+          if (gmp_sign($a) === -1) {
+            $a = gmp_sub($counterLimit, $a);
+          }
+        }
+      }
+      # check private counter overflows the upper limit
+      if (gmp_cmp($counterLimit, $a) <= 0) {
+        $a = gmp_sub($a, $counterLimit);
+      }
+      # private counter determined!
+      # convert it back to string and left-pad with zeros
+      $a = str_pad(gmp_export($a), 10, chr(0x00), STR_PAD_LEFT);
+      # update secret
+      $this->keySecret = substr($this->keySecret, 0, 32).$a.$this->counter;
+      ###
+      # decrypt data
+      if (($data = $this->decrypt($data)) === null)
+      {
+        # in general, failure means that secret keys mismatch and
+        # special measures should take place, for example:
+        # - reset user session
+        # - delay/block further requests
+        # - ...
+        # to indicate this state,
+        # set the flag and destroy secret
+        $this->rotten = true;
+        self::$secret = '';
+        # fail
+        throw new Exception('failed to decrypt');
+      }
+      # update secret store
+      self::$secret = bin2hex($this->keySecret);
+      # decode JSON
+      if ($type !== 0 && ($data = json_decode($data, true)) === null) {
+        throw new Exception('incorrect JSON: '.json_last_error_msg());
+      }
+      # success
+      $R = $data;
     }
-    # decrypt
-    # ...
-    # decode json to array
-    return $json ? json_decode($data, true) : $data;
+    catch (Exception $e)
+    {
+      $this->encrypted = false;
+      $this->error = $e->getMessage();
+    }
+    # display error
+    if (!empty($this->error) && self::$options['outputError'])
+    {
+      header('content-type: text/plain');
+      echo $this->error;
+    }
+    # done
+    return $R;
   }
   # }}}
   public function encryptResponse($data) # {{{
   {
-    $result = null;
+    $result = '';
     try
     {
-      # check secret exists
+      # check flag
+      if (!$this->encrypted) {
+        throw new Exception('');
+      }
+      # check secret key
       if ($this->keySecret === null) {
-        throw new Exception('secret not found');
+        throw new Exception('shared secret must be established');
       }
-      # check parameter
-      if (!is_string($data)) {
-        throw new Exception('incorrect parameter type');
+      ###
+      # determine new secret
+      # prepare
+      $limit1 = '1208925819614629174706176';# maximum + 1
+      $limit2 = 65536;
+      # extract all parts of the counter
+      $a = gmp_import(substr($this->keySecret, -12, 10));
+      $b = gmp_intval(gmp_import(substr($this->keySecret, -2)));
+      # increase both
+      $a = gmp_add($a, '1');
+      $b = $b + 1;
+      # fix overflows
+      if (gmp_cmp($a, $limit1) > 0) {
+        $a = gmp_sub($a, $limit1);
       }
-      if (empty($data)) {
-        $result = '';
+      if ($b > 65536) {
+        $b = $b - 65536;
       }
-      else
+      # convert to strings
+      $a = str_pad(gmp_export($a), 10, chr(0x00), STR_PAD_LEFT);
+      $b = str_pad(gmp_export($b), 2, chr(0x00), STR_PAD_LEFT);
+      # update secret
+      $this->keySecret = substr($this->keySecret, 0, 32).$a.$b;
+      # encrypt data
+      xdebug_break();
+      if (($result = $this->encrypt($data)) === null)
       {
+        # set empty result
+        $result = '';
+        throw new Exception('failed to encrypt');
       }
+      # set encoding
+      header('content-encoding: aes256gcm');
+      # update secret store
+      self::$secret = bin2hex($this->keySecret);
     }
     catch (Exception $e) {
       $this->error = $e->getMessage();
+    }
+    # display error
+    if (!empty($this->error) && self::$options['outputError']) {
+      $result = $this->error;
     }
     return $result;
   }
@@ -306,58 +435,32 @@ class HttpCrypto {
     $tag  = substr($data, -16);
     $data = substr($data, 0, strlen($data) - 16);
     # decrypt aes256gcm binary data
-    return @openssl_decrypt($data, 'aes-256-gcm', $key,
-                            OPENSSL_RAW_DATA, $iv, $tag);
+    $data = @openssl_decrypt($data, 'aes-256-gcm', $key,
+                             OPENSSL_RAW_DATA, $iv, $tag);
+    # check
+    if ($data === false) {
+      return null;
+    }
+    return $data;
   }
   # }}}
-  function crypto_encrypt($data, $secret) # {{{
+  private function encrypt($data) # {{{
   {
-    # prepare data
     # extract key and iv
-    $key = substr($secret,  0, 32);
-    $iv  = substr($secret, 32, 12);
+    $key = substr($this->keySecret,  0, 32);
+    $iv  = substr($this->keySecret, 32, 12);
+    # prepare message tag
     $tag = '';
     # encrypt aes256gcm binary data
-    $enc = openssl_encrypt($data, 'aes-256-gcm', $key,
-                          OPENSSL_RAW_DATA, $iv, $tag);
+    $enc = @openssl_encrypt($data, 'aes-256-gcm', $key,
+                            OPENSSL_RAW_DATA, $iv, $tag);
     # check
     if ($enc === false) {
-      return false;
+      return null;
     }
-    # append signature
+    # append signature and
+    # complete
     return $enc.$tag;
-  }
-  # }}}
-  function crypto_next_iv($iv) # {{{
-  {
-    # change iv/counter
-    # split it into two parts and increase both
-    $c1 = gmp_add(gmp_import(substr($iv, 0,  6)), '1');
-    $c2 = gmp_add(gmp_import(substr($iv, 6, 12)), '1');
-    # convert back to binary string
-    $c1 = gmp_export($c1);
-    $c2 = gmp_export($c2);
-    # correct lengths (truncate or pad with zeroes)
-    $iv = [$c1, $c2];
-    foreach ($iv as $i => $v) {
-      if (($a = strlen($v)) !== 6)
-      {
-        if ($a > 6) {
-          $a = 6;
-        }
-        else if ($a < 6) {
-          $a = 6 - $a;
-        }
-        while ($a > 0)
-        {
-          $v = chr(0x00).$v;
-          $a = $a - 1;
-        }
-      }
-      $iv[$i] = $v;
-    }
-    # concatenate
-    return implode('', $iv);
   }
   # }}}
 }

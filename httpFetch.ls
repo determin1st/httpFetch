@@ -7,24 +7,328 @@ httpFetch = do ->
 		typeof AbortController
 		typeof Proxy
 		typeof Promise
+		typeof WeakMap
+		typeof TextDecoder
 	]
 	if api.includes 'undefined'
 		console.log 'httpFetch: missing requirements'
 		return null
 	# }}}
-	# initialize
+	# helpers
+	jsonDecode = (s) -> # {{{
+		if s
+			try
+				# parses non-empty string as JSON
+				return JSON.parse s
+			catch
+				# breaks to upper level!
+				throw new FetchError 'incorrect JSON: '+s, 0
+		# empty equals to null
+		return null
+	# }}}
+	jsonEncode = (o) -> # {{{
+		try
+			return JSON.stringify o
+		catch null
+			return null
+	# }}}
+	textDecode = do -> # {{{
+		t = new TextDecoder 'utf-8'
+		return (buf) ->
+			t.decode buf
+	# }}}
+	textEncode = do -> # {{{
+		t = new TextEncoder!
+		return (str) ->
+			t.encode str
+	# }}}
+	apiCrypto = do -> # {{{
+		# check requirements
+		if (typeof crypto == 'undefined') or not crypto.subtle
+			console.log 'httpFetch: Web Crypto API is not available'
+			return null
+		# helplers
+		CS = crypto.subtle
+		nullFunc = -> null
+		bufToHex = do -> # {{{
+			# create convertion array
+			hex = []
+			i = -1
+			n = 256
+			while ++i < n
+				hex[i] = i.toString 16 .padStart 2, '0'
+			# create function
+			return (buf) ->
+				a = new Uint8Array buf
+				b = []
+				i = -1
+				n = a.length
+				while ++i < n
+					b[i] = hex[a[i]]
+				return b.join ''
+		# }}}
+		hexToBuf = (hex) -> # {{{
+			# align hex string length
+			if (len = hex.length) % 2
+				hex = '0' + hex
+				++len
+			# determine buffer length
+			len = len / 2
+			# create buffer
+			buf = new Uint8Array len
+			# convert hex pairs to integers and
+			# put them inside the buffer one by one
+			i = -1
+			j = 0
+			while ++i < len
+				buf[i] = parseInt (hex.slice j, j + 2), 16
+				j += 2
+			# done
+			return buf
+		# }}}
+		bufToBigInt = (buf) -> # {{{
+			return BigInt '0x' + (bufToHex buf)
+		# }}}
+		bigIntToBuf = (bi, size) -> # {{{
+			# convert BigInt to buffer
+			buf = hexToBuf bi.toString 16
+			# check buffer length
+			if not size or (len = buf.length) == size
+				return buf
+			# align buffer length to specified size
+			if len > size
+				# truncate
+				buf = buf.slice len - size
+			else
+				# pad
+				big = new Uint8Array size
+				big.set buf, size - len
+				buf = big
+			# done
+			return buf
+		# }}}
+		newCryptoData = do -> # {{{
+			# constructor
+			CryptoData = !->
+				@data = null
+				@key  = null
+			# factory
+			return (store) -> (data) ->
+				a = new CryptoData!
+				a.data = data
+				a.key  = store.secret
+				return a
+		# }}}
+		# singleton
+		return {
+			cs: CS
+			secretManagersPool: new WeakMap!
+			keyParams: {
+				name: 'ECDH'
+				namedCurve: 'P-521'
+			}
+			derivePublicKey: {
+				name: 'HMAC'
+				hash: 'SHA-512'
+				length: 528
+			}
+			deriveParams: {
+				name: 'HMAC'
+				hash: 'SHA-512'
+				length: 528
+			}
+			generateKeyPair: ->> # {{{
+				# create keys
+				k = await (CS.generateKey @keyParams, true, ['deriveKey'])
+					.catch nullFunc
+				# check
+				return null if k == null
+				# convert public CryptoKey
+				a = await (CS.exportKey 'spki', k.publicKey)
+					.catch nullFunc
+				# check
+				return if a == null
+					then null
+					else [k.privateKey, a]
+			# }}}
+			generateHashPair: ->> # {{{
+				# create first hash
+				a = await (CS.generateKey @deriveParams, true, ['sign'])
+					.catch nullFunc
+				# check
+				return null if a == null
+				# convert CryptoKey
+				a = await (CS.exportKey 'raw', a)
+					.catch nullFunc
+				# check
+				return null if a == null
+				# create second hash
+				b = await (CS.digest 'SHA-512', a)
+					.catch nullFunc
+				# check
+				return null if b == null
+				# done
+				a = new Uint8Array a
+				b = new Uint8Array b
+				return [a, b]
+			# }}}
+			importKey: (k) -> # {{{
+				return (CS.importKey 'spki', k, @keyParams, true, [])
+					.catch nullFunc
+			# }}}
+			importEcdhKey: (k) -> # {{{
+				return (CS.importKey 'raw', k, {name: 'AES-GCM'}, false, ['encrypt' 'decrypt'])
+					.catch nullFunc
+			# }}}
+			deriveKey: (privateK, publicK) -> # {{{
+				publicK = {
+					name: 'ECDH'
+					public: publicK
+				}
+				return (CS.deriveKey publicK, privateK, @deriveParams, true, ['sign'])
+					.catch nullFunc
+			# }}}
+			bufToBase64: (buf) -> # {{{
+				a = new Uint8Array buf
+				return btoa (String.fromCharCode.apply null, a)
+			# }}}
+			base64ToBuf: (str) -> # {{{
+				# decode base64 to string
+				a = atob str
+				b = a.length
+				# create buffer
+				c = new Uint8Array b
+				d = -1
+				# populate
+				while ++d < b
+					c[d] = a.charCodeAt d
+				# done
+				return c
+			# }}}
+			newSecret: do -> # {{{
+				# helpers and constructors
+				CipherParams = (iv) !->
+					@name      = 'AES-GCM'
+					@iv        = iv
+					@tagLength = 128
+				SecretStorage = (manager, secret, key, iv) !->
+					@manager = manager
+					@secret  = secret
+					@key     = key
+					@params  = new CipherParams iv
+					@newData = newCryptoData @
+				SecretStorage.prototype = {
+					encrypt: (data) ->
+						# convert to ArrayBuffer
+						if typeof data == 'string'
+							data = textEncode data
+						# run
+						return (CS.encrypt @params, @key, data)
+							.catch nullFunc
+					decrypt: (data) ->
+						# convert to ArrayBuffer
+						if typeof data == 'string'
+							data = textEncode data
+						# run
+						return (CS.decrypt @params, @key, data)
+							.catch nullFunc
+					next: ->
+						# get counter
+						a = @params.iv
+						b = new DataView a.buffer, 10, 2
+						# convert private and public parts of the counter to integers
+						c = bufToBigInt (a.slice 0, 10)
+						d = b.getUint16 0, false
+						# increase and fix overflows
+						if (e = ++c - ``1208925819614629174706176n``) >= 0
+							c = e
+						if (e = ++d - 65536) >= 0
+							d = e
+						# store
+						a.set (bigIntToBuf c, 10), 0
+						b.setUint16 0, d, false
+						# update secret
+						@secret.set a, 32
+						# complete
+						return @
+					tag: ->
+						# serialize public part of the counter
+						return bufToHex @secret.slice -2
+					save: ->
+						# encode and store secret data
+						return if @manager 'set', apiCrypto.bufToBase64 @secret
+							then @
+							else null
+				}
+				# factory
+				return (secret, manager) ->>
+					# check
+					switch typeof! secret
+					case 'String'
+						# from storage
+						# decode from base64
+						secret = apiCrypto.base64ToBuf secret
+					case 'CryptoKey'
+						# from handshake
+						# convert to raw data
+						secret = await apiCrypto.cs.exportKey 'raw', secret
+						secret = new Uint8Array secret
+						# trim leading zero-byte (!?)
+						secret = secret.slice 1 if secret.0 == 0
+						break
+					default
+						# incorrect type
+						return null
+					# check length
+					if secret.length < 44
+						return null
+					# truncate
+					secret = secret.slice 0, 44
+					# extract parts
+					# there is no reason to apply any hash algorithms,
+					# because key resistance to preimages/collisions won't improve,
+					k = secret.slice  0, 32    # 256bits (aes cipher key)
+					c = secret.slice 32, 32+12 # 96bit (gcm counter/iv)
+					# create CryptoKey object
+					if (k = await apiCrypto.importEcdhKey k) == null
+						return null
+					# create storage
+					return new SecretStorage manager, secret, k, c
+			# }}}
+		}
+	# }}}
+	# constructors
 	Config = !-> # {{{
 		@baseUrl   = ''
 		@status200 = true
-		@fullSet   = false
-		@noEmpty   = false
+		@fullHouse = false
+		@notNull   = false
 		@timeout   = 20
 		@retry     = null
 		@secret    = null
 		@headers   = {
-			'accept': 'application/json'
 			'content-type': 'application/json; charset=utf-8'
 		}
+	Config.prototype = {
+		set: do ->
+			baseOptions = [
+				'baseUrl'
+				'status200'
+				'fullHouse'
+				'notNull'
+				'timeout'
+			]
+			return (o) !->
+				# set primitives
+				for a in baseOptions when o.hasOwnProperty a
+					@[a] = o[a]
+				# set headers
+				if o.headers
+					@headers = {}
+					for a,b of o.headers
+						@headers[a.toLowerCase!] = b
+				# done
+	}
 	# }}}
 	RetryConfig = !-> # {{{
 		@count        = 15
@@ -33,9 +337,24 @@ httpFetch = do ->
 		@maxBackoff   = 32
 		@delay        = 1
 	# }}}
-	ResponseData = !-> # {{{
-		@headers = null
-		@data    = null
+	ResponseData = do -> # {{{
+		RequestData = !->
+			@headers = null
+			@data    = null
+			@crypto  = null
+		return ResponseData = !->
+			@status  = 0
+			@headers = null
+			@data    = null
+			@crypto  = null
+			@request = new RequestData!
+	###
+	ResponseData.prototype = do ->
+		return {
+			addCrypto: !->
+				@crypto = new CryptoData!
+				@request.crypto = new CryptoData!
+		}
 	# }}}
 	FetchOptions = (method) !-> # {{{
 		@method  = method
@@ -61,153 +380,130 @@ httpFetch = do ->
 		E.prototype = Error.prototype
 		return E
 	# }}}
-	FetchHandlerData = !-> # {{{
-		# create object shape
-		# properties
-		@aborter  = null
-		@timeout  = 0
-		@timer    = 0
-		@retry    = new RetryConfig!
-		@promise  = null
-		@response = new ResponseData!
-		# bound methods
+	FetchData = (config) !-> # {{{
+		# result control
+		@promise   = null
+		@response  = new ResponseData!
+		# cancellation control
+		@aborter   = null
+		@timer     = 0
 		@timerFunc = !~>
-			@aborter.abort!
 			@timer = 0
+			@aborter.abort!
+		# connection control
+		@retry     = new RetryConfig!
+		# individual request configuration
+		@status200 = config.status200
+		@fullHouse = config.fullHouse
+		@notNull   = config.notNull
+		@timeout   = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
-		# prepare helpers
-		jsonParser = (r) -> # {{{
-			# parse non-empty as a JSON
-			if r
-				try
-					return JSON.parse r
-				catch e
-					throw new FetchError 'Incorrect response: '+r, 0
-			# empty
-			return if config.noEmpty
-				then {}
-				else null
-		# }}}
-		newFormData = do -> # {{{
-			# prepare recursive helper function
-			add = (data, item, key) ->
-				# check type
-				switch typeof! item
-				case 'Object'
-					# object's own properties are iterated
-					# with the respect to definition order (top to bottom)
-					t = Object.getOwnPropertyNames item
-					if key
-						for k in t
-							add data, item[k], key+'['+k+']'
-					else
-						for k in t
-							add data, item[k], k
-				case 'Array'
-					# the data parameter may be array itself,
-					# in this case it is unfolded to a set of parameters,
-					# otherwise, additional brackets are added to the name,
-					# which is common (for example, to PHP parser)
-					t = item.length
-					k = -1
-					if key
-						while ++k < t
-							add data, item[k], key+'[]'
-					else
-						while ++k < t
-							add data, item[k], ''
-				case 'HTMLInputElement'
-					# file inputs are unfolded to FileLists
-					if item.type == 'file' and t = item.files.length
-						add data, item.files, key
-				case 'FileList'
-					# similar to the Array
-					if (t = item.length) == 1
-						data.append key, item.0
-					else
-						k = -1
-						while ++k < t
-							data.append key+'[]', item[k]
-				case 'Null'
-					# null will become 'null' string when appended,
-					# which is not expected(?!) in most cases, so,
-					# let's cast it to the empty string!
-					data.append key, ''
-				default
-					data.append key, item
-				# done
-				return data
-			# create simple factory
-			return (o) ->
-				return add new FormData!, o, ''
-		# }}}
 		handler = (url, options, data, callback) -> # {{{
 			responseHandler = (r) -> # {{{
-				# check for HTTP status
-				if not r.ok or (r.status != 200 and config.status200)
+				# terminate timeout timer
+				if data.timer
+					clearTimeout data.timer
+					data.timer = 0
+				# check HTTP status
+				# ok status is any status in the range 200-299,
+				# modern API may limit it to 200 (this option is on by default)
+				if not r.ok or (r.status != 200 and data.status200)
 					throw new FetchError r.statusText, r.status
-				# parse response headers
+				# parse headers
 				h = {}
 				a = r.headers.entries!
 				while not (b = a.next!).done
 					h[b.value.0.toLowerCase!] = b.value.1
-				# store them
-				if options.fullSet
-					data.response.headers = h
-				# determine content type (server setting is preffered)
-				a = if h['content-type']
-					then h['content-type']
-					else options.headers.accept
+				# store
+				data.response.status  = r.status
+				data.response.headers = h
+				# check encoding
+				if a = h['content-encoding']
+					# ENCRYPTED!
+					# the only valid encoding is encryption
+					if a != 'aes256gcm'
+						throw new FetchError 'incorrect content-encoding', r.status
+					# secret key must exist
+					if not config.secret
+						throw new FetchError 'unable to decrypt, no shared secret', r.status
+					# encrypted content is always sent as binary
+					return r.arrayBuffer!
+				###
+				# NOT ENCRYPTED!
+				# determine content type (own setting is preferred)
+				a = options.headers.accept or h['content-type'] or ''
 				# parse content
 				switch 0
 				case a.indexOf 'application/json'
 					# not using .json(), because response with empty body
 					# will throw error at no-cors opaque mode (who needs that bullshit?)
-					return r.text!.then jsonParser
+					return r.text!.then jsonDecode
 				case a.indexOf 'application/octet-stream'
 					# binary data
-					return r.arrayBuffer!.then (r) ->
-						# TODO
-						# check encrypted with shared secret
-						if h['content-encoding'] == 'aes256gcm' and config.secret
-							# decrypt
-							# ...
-							#crypto.subtle.decrypt aesParams, s, b
-							true
-						# done
-						return r
+					return r.arrayBuffer!
 				default
-					# assume simpliest, text/plain
+					# plaintext
 					return r.text!
 			# }}}
-			successHandler = (r) !-> # {{{
-				# stop timer
-				if data.timer
-					clearTimeout data.timer
-					data.timer = 0
-				# compose resulting dataset if required
-				if options.fullSet
-					data.response.data = r
-					r = data.response
-				# return result through callback or promise object
+			successHandler = (d) !->> # {{{
+				# prepare
+				res = data.response
+				sec = config.secret
+				# check if encryption enabled
+				if sec
+					# check if the response encrypted
+					if d and res.headers['content-encoding']
+						# advance counter and
+						# decrypt it
+						if (a = await sec.next!decrypt d) == null
+							sec.manager 'error'
+							throw new FetchError 'failed to decrypt the response', res.status
+						# store encrypted data
+						res.crypto = sec.newData d
+						# update secret
+						sec.save!
+						# determine content type (own setting is preferred)
+						b = options.headers.accept or res.headers['content-type'] or ''
+						# parse response
+						switch 0
+						case b.indexOf 'application/json'
+							# Object
+							d = jsonDecode a
+						case b.indexOf 'text/plain'
+							# String
+							d = textDecode a
+						default
+							# Binary
+							d = a
+					else
+						# as the request was send encrypted,
+						# update secret
+						sec.save!
+				# check for null (empty response)
+				if d == null and data.notNull
+					d = {}
+				# prepare result
+				if data.fullHouse
+					res.data = d
+				else
+					res = d
+				# return it through callback or promise
 				if callback
-					callback true, r
+					callback true, res
 				else
 					data.promise.pending = false
-					data.promise.resolve r
-				# done
+					data.promise.resolve res
 			# }}}
 			errorHandler = (e) !-> # {{{
-				# stop timer
-				if data.timer
-					clearTimeout data.timer
-					data.timer = 0
-				# run callback
-				if callback and not callback false, e
-					return
-				# retry?
-				# TODO: revise and test
+				# return through callback or promise
+				if callback
+					callback false, e
+				else
+					data.promise.pending = false
+					data.promise.resolve e
+				/***
+				# TODO: retry request?!
 				while true
 					# check for incorrect response
 					if not (e instanceof FetchError) or e.status == 0
@@ -237,29 +533,26 @@ httpFetch = do ->
 					# activate re-try
 					setTimeout handlerFunc, b
 					return
-				# check promise
-				if not callback
-					data.promise.pending = false
-					data.promise.resolve e
-				# complete
+				/***/
 			# }}}
-			return handlerFunc = !->
-				# set timer
-				if data.timeout
-					data.timer = setTimeout data.timerFunc, data.timeout
-				# call native fetch API
-				fetch url, options
-					.then responseHandler
-					.then successHandler
-					.catch errorHandler
+			# set timer
+			if data.timeout
+				data.timer = setTimeout data.timerFunc, data.timeout
+			# call api
+			return fetch url, options
+				.then responseHandler
+				.then successHandler
+				.catch errorHandler
 		# }}}
 		# create object shape
 		@config = config
 		@api = new Api @
 		@fetch = (options, callback) ->
 			# check parameters
-			if typeof! options != 'Object'
-				return null
+			if typeof! options != 'Object' or \
+			   callback and typeof callback != 'function'
+				###
+				return new Error 'incorrect parameters'
 			# determine method
 			a = if options.hasOwnProperty 'method'
 				then options.method
@@ -268,49 +561,99 @@ httpFetch = do ->
 					else 'GET'
 			# create options and data
 			o = new FetchOptions a
-			d = new FetchHandlerData!
+			d = new FetchData config
 			# initialize
-			# set headers
-			o.headers <<< config.headers
+			# set individual options
+			# {{{
+			if options.hasOwnProperty 'timeout' and (a = options.timeout) >= 0
+				d.timeout = 1000 * a
+			if options.hasOwnProperty 'status200'
+				d.status200 = !!options.status200
+			if options.hasOwnProperty 'fullHouse'
+				d.fullHouse = !!options.fullHouse
+			if options.hasOwnProperty 'notNull'
+				d.notNull = !!options.notNull
+			# }}}
+			# set request headers
+			# {{{
+			# combine default headers with config and
+			# put them into request
+			d.response.request.headers = o.headers <<< config.headers
+			# combine with options
 			if a = options.headers
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
-			# set request data
-			# {{{
-			if options.data
-				# check content type
-				a = o.headers['content-type']
-				switch 0
-				case a.indexOf 'application/json'
-					# JSON
-					o.body = if typeof options.data == 'string'
-						then options.data
-						else JSON.stringify options.data
-				case a.indexOf 'multipart/form-data'
-					# FormData
-					o.body = if typeof! options.data == 'FormData'
-						then options.data
-						else newFormData options.data
-					# remove type header,
-					# as it conflicts with FormData object body,
-					# despite they are equal (wtf)
-					delete o.headers['content-type']
-				default
-					# AS IS
-					o.body = options.data if options.data
+			# when encryption enabled,
+			# enforce proper encoding and counter tag
+			if a = config.secret
+				o.headers['content-encoding'] = 'aes256gcm'
+				o.headers['etag'] = a.next!tag!
 			# }}}
-			# set aborter
+			# set request body
+			# {{{
+			if c = options.data
+				# prepare
+				a = o.headers['content-type']
+				b = typeof! c
+				# check
+				if config.secret
+					# ENCRYPTED!
+					switch 0
+					case a.indexOf 'application/x-www-form-urlencoded'
+						# Enforce JSON
+						o.headers['content-type'] = 'application/json'
+						fallthrough
+					case a.indexOf 'application/json'
+						# JSON
+						if b != 'String' and not (c = jsonEncode c)
+							return new Error 'failed to encode request data'
+					case a.indexOf 'multipart/form-data'
+						# TODO: JSON in FormData
+						# prepared data is not supported
+						if b in <[String FormData]>
+							return new Error 'incorrect request data'
+						# remove type header
+						delete o.headers['content-type']
+						# the data will be wrapped after encryption!
+						# ...
+					default
+						# RAW
+						if b not in <[String ArrayBuffer]>
+							return new Error 'incorrect request data'
+				else
+					# NOT ENCRYPTED!
+					switch 0
+					case a.indexOf 'application/json'
+						# JSON
+						if b != 'String' and (c = jsonEncode c) == null
+							return new Error 'failed to encode request data'
+					case a.indexOf 'application/x-www-form-urlencoded'
+						# URLSearchParams
+						if b not in <[String URLSearchParams]> and not (c = newQueryString c)
+							return new Error 'failed to encode request data'
+					case a.indexOf 'multipart/form-data'
+						# FormData
+						if b not in <[String FormData]> and not (c = newFormData c)
+							return new Error 'failed to encode request data'
+						# remove type header, because it conflicts with FormData object,
+						# despite it perfectly fits the logic (wtf)
+						if b != 'String'
+							delete o.headers['content-type']
+					default
+						# RAW
+						if b not in <[String ArrayBuffer]>
+							return new Error 'incorrect request data'
+				# set
+				o.body = d.response.request.data = c
+			# }}}
+			# set request controllers
+			# {{{
+			# create aborter
 			d.aborter = if options.aborter
 				then options.aborter
 				else new AbortController!
 			# set abort signal
 			o.signal = d.aborter.signal
-			# set timeout
-			a = if options.hasOwnProperty 'timeout'
-				then options.timeout
-				else config.timeout
-			if a >= 1
-				d.timeout = 1000 * a
 			# TODO: set retry
 			# {{{
 			# copy configuration
@@ -329,267 +672,39 @@ httpFetch = do ->
 			a.current = 0
 			a.maxBackoff = 1000 * a.maxBackoff
 			# }}}
-			# set promise
+			# create custom promise
 			if not callback
 				d.promise = newPromise d.aborter
+			# }}}
 			# determine request url
 			a = if options.url
-				then config.baseUrl+options.url
+				then config.baseUrl + options.url
 				else config.baseUrl
-			# run
-			(handler a, o, d, callback)!
+			# run fetch
+			# check if request must be encrypted
+			if config.secret
+				# encrypt data
+				config.secret.encrypt o.body .then (c) !->
+					# set request body
+					o.body = c
+					d.response.request.crypto = config.secret.newData c
+					# invoke fetch handler
+					if not o.signal.aborted
+						handler a, o, d, callback
+				.catch (e) !->
+					# encryption failed!?
+					if callback
+						callback false, e
+					else
+						d.promise.pending = false
+						d.promise.resolve e
+			else
+				# invoke immediately
+				handler a, o, d, callback
 			# done
 			return if callback
 				then d.aborter
 				else d.promise
-	# }}}
-	newPromise = (aborter) -> # {{{
-		# create standard promise and take out its resolver routine
-		a = null
-		b = new Promise (resolve) !->
-			a := resolve
-		# customize standard promise object
-		b.pending = true
-		b.resolve = a
-		b.controller = aborter
-		b.abort = b.cancel = !-> aborter.abort!
-		# done
-		return b
-	# }}}
-	newInstance = (baseConfig) -> (userConfig) -> # {{{
-		# create new configuration
-		config = new Config!
-		# initialize it
-		for c in [baseConfig, userConfig] when c
-			# copy primitives (set complex)
-			for a of config when c.hasOwnProperty a
-				config[a] = c[a]
-			# copy retry
-			if c.retry
-				config.retry = (new RetryConfig!) <<< c.retry
-			# copy headers
-			if c.headers
-				config.headers = {}
-				for a,b of c.headers
-					config.headers[a.toLowerCase!] = b
-		# create handlers
-		a = new FetchHandler config
-		b = new ApiHandler a
-		# create httpFetch instance
-		return new Proxy a.fetch, b
-	# }}}
-	apiCrypto = do -> # {{{
-		# check requirements
-		if (typeof crypto == 'undefined') or not crypto.subtle
-			console.log 'httpFetch: Crypto API is not supported'
-			return null
-		# create singleton
-		return {
-			keyParams: {
-				name: 'ECDH'
-				namedCurve: 'P-521'
-			}
-			deriveParams: {
-				name: 'HMAC'
-				hash: 'SHA-512'
-				length: 528
-			}
-			nullFunc: -> null
-			generateKeyPair: ->> # {{{
-				# create keys
-				k = await (crypto.subtle.generateKey @keyParams, true, ['deriveKey'])
-					.catch @nullFunc
-				# check
-				if k == null
-					return null
-				# convert public CryptoKey
-				a = await (crypto.subtle.exportKey 'spki', k.publicKey)
-					.catch @nullFunc
-				# check
-				if a == null
-					return null
-				# complete
-				return {
-					privateKey: k.privateKey
-					publicKey: a
-				}
-			# }}}
-			generateHashPair: ->> # {{{
-				# create first hash
-				a = await (crypto.subtle.generateKey @deriveParams, true, ['sign'])
-					.catch @nullFunc
-				# check
-				return null if a == null
-				# convert CryptoKey
-				a = await (crypto.subtle.exportKey 'raw', a)
-					.catch @nullFunc
-				# check
-				return null if a == null
-				# create second hash
-				b = await (crypto.subtle.digest 'SHA-512', a)
-					.catch @nullFunc
-				# check
-				return null if b == null
-				# done
-				a = new Uint8Array a
-				b = new Uint8Array b
-				return [a, b]
-				# convert binary to string,
-				# this will produce same key as in JWK
-				#return @bufToBase64 a
-			# }}}
-			importKey: (k) -> # {{{
-				return (crypto.subtle.importKey 'spki', k, @keyParams, true, [])
-					.catch @nullFunc
-			# }}}
-			deriveKey: (privateKey, publicKey) -> # {{{
-				return (crypto.subtle.deriveKey {
-					name: 'ECDH'
-					public: publicKey
-				}, privateKey, @deriveParams, true, ['sign'])
-					.catch @nullFunc
-			# }}}
-			bufToHex: do -> # {{{
-				# create convertion array
-				hex = []
-				i = -1
-				n = 255
-				while ++i < n
-					hex[i] = i.toString 16 .padStart 2, '0'
-				# create function
-				return (buf) ->
-					a = new Uint8Array buf
-					b = []
-					i = -1
-					n = a.length
-					while ++i < n
-						b[i] = hex[a[i]]
-					return b.join ''
-			# }}}
-			bufToBase64: (buf) -> # {{{
-				a = new Uint8Array buf
-				return btoa (String.fromCharCode.apply null, a)
-			# }}}
-			base64ToBuf: (str) -> # {{{
-				# decode base64 to string
-				a = atob str
-				b = a.length
-				# create buffer
-				c = new Uint8Array b
-				d = -1
-				# populate
-				while ++d < b
-					c[d] = a.charCodeAt d
-				# done
-				return c
-			# }}}
-			bufToBn: (buf) -> # {{{
-				# prepare
-				hex = []
-				u8  = Uint8Array.from buf
-				c   = u8.length
-				i   = -1
-				# convert buffer to hex string
-				while ++i < c
-					h = u8[i].toString 16
-					h = '0'+h if h.length % 2
-					hex[i] = h
-				# construct BigInt
-				return BigInt '0x' + (hex.join '')
-			# }}}
-			bnToBuf: (bn, size = 0) -> # {{{
-				# convert BigInt to hex string
-				hex = BigInt bn .toString 16
-				hex = '0' + hex if hex.length % 2
-				len = hex.length / 2
-				# determine padding size
-				if not size
-					size = len
-				if (pad = size - len) < 0
-					hex = hex.slice (-pad * 2)
-					pad = 0
-				# create buffer (assume, initialized with zeroes)
-				u8 = new Uint8Array size
-				# prepare
-				i = pad
-				j = i * 2
-				# convert hex to integer value and
-				# put it inside buffer
-				while i < size
-					u8[i] = parseInt (hex.slice j, j+2), 16
-					i += 1
-					j += 2
-				# done
-				return u8
-			# }}}
-			newSecret: do -> # {{{
-				# helpers and constructors
-				CipherParams = (iv) !->
-					@name      = 'AES-GCM'
-					@iv        = iv
-					@tagLength = 128
-				SecretStorage = (manager, key, iv, current, next) !->
-					@manager = manager
-					@key     = key
-					@params  = new CipherParams iv
-					@current = current
-					@next    = next
-				SecretStorage.prototype = {
-					nullFunc: -> null
-					stringToBuf: TextEncoder.prototype.encode.bind (new TextEncoder!)
-					bufToString: TextDecoder.prototype.decode.bind (new TextDecoder 'utf-8')
-					encrypt: (data) ->
-						# convert data to ArrayBuffer
-						if typeof data == 'string'
-							data = @stringToBuf data
-						# do it
-						return (crypto.subtle.encrypt @params, @key, data)
-							.catch @nullFunc
-					decrypt: (data) ->
-						# ...
-						return (crypto.subtle.decrypt @params, @key, data)
-							.catch @nullFunc
-				}
-				# factory
-				return (ecdh_secret, manager) ->>
-					# check
-					if not ecdh_secret or ecdh_secret.length < 44
-						return null
-					# truncate secret
-					ecdh_secret = ecdh_secret.slice 0, 44
-					# extract key parts
-					# there is no reason to apply more complex key "compression" functions,
-					# because resistance of key preimages/collision wont improve..
-					s = ecdh_secret.slice  0, 32    # 256bits (cipher key)
-					c = ecdh_secret.slice 32, 32+12 # 96bit (counter/iv)
-					# create new CryptoKey
-					k = await (crypto.subtle.importKey 'raw', s, {name: 'AES-GCM'}, false, [
-						'encrypt'
-						'decrypt'
-					]).catch @nullFunc
-					# check
-					if k == null
-						return null
-					# determine next secret (with increased counter)
-					# split counter into two parts
-					# this eleminates the chance of iv/counter becoming zero
-					c1 = @bufToBn (c.slice 0, 6)
-					c2 = @bufToBn (c.slice 6, 12)
-					# increase each
-					++c1
-					++c2
-					# convert BigInts back to buffers
-					c1 = @bnToBuf c1, 6
-					c2 = @bnToBuf c2, 6
-					# concatenate them
-					n = new Uint8Array 32+12
-					n.set  s, 0
-					n.set c1, 32
-					n.set c2, 32+6
-					# create storage
-					return new SecretStorage manager, k, c, (@bufToBase64 ecdh_secret), (@bufToBase64 n)
-			# }}}
-		}
 	# }}}
 	Api = (handler) !-> # {{{
 		###
@@ -622,30 +737,29 @@ httpFetch = do ->
 		handshakeLocked = false
 		@handshake = (url, storeManager) ~>> # {{{
 			# Diffie-Hellman-Merkle key exchange
-			# checkout current state
+			# check lock
 			if handshakeLocked
 				return false
-			# reset
+			# destroy current secret?
 			if not storeManager
-				if a = handler.config.secret
+				if k = handler.config.secret
 					handler.config.secret = null
-					a.manager ''
+					apiCrypto.secretManagersPool.delete k.manager
+					k.manager 'destroy', ''
+				# done
 				return true
+			# check unique
+			if apiCrypto.secretManagersPool.has storeManager
+				console.log 'httpFetch: secret store manager must be unique'
+				return false
 			# lock
 			handshakeLocked := true
-			# checkout shared secret
-			if a = storeManager!
-				# already established,
-				# convert it from base64
-				a = apiCrypto.base64ToBuf a
-				# create new storage
-				if (k = await apiCrypto.newSecret a, storeManager) == null
-					return false
-				# done
-				handler.config.secret = k
+			# try to restore saved secret
+			if k = storeManager 'get'
+				k = handler.config.secret = await apiCrypto.newSecret k, storeManager
 				handshakeLocked := false
-				return true
-			# let's create verification hashes:
+				return !!k
+			# create verification hashes:
 			# H0, will be encrypted and sent to the server
 			# H1, will be compared against hash produced by the server
 			if not (hash = await apiCrypto.generateHashPair!)
@@ -665,35 +779,30 @@ httpFetch = do ->
 				b = {
 					url: url
 					method: 'POST'
-					data: k.publicKey
+					data: k.1
 					headers: {
-						'accept': 'application/octet-stream'
 						'content-type': 'application/octet-stream'
-						'content-encoding': 'exchange'
+						'etag': 'exchange'
 					}
+					fullHouse: false
 					timeout: 0
 				}
 				a = await handler.fetch b
 				# check the response
 				if not a or (a instanceof Error)
 					break
-				# convert to a CryptoKey
+				# convert to CryptoKey
 				if (a = await apiCrypto.importKey a) == null
 					break
 				# create shared secret key
-				if (a = await apiCrypto.deriveKey k.privateKey, a) == null
+				if (a = await apiCrypto.deriveKey k.0, a) == null
 					break
-				# convert object to raw data
-				a = await crypto.subtle.exportKey 'raw', a
-				a = new Uint8Array a
-				# trim leading zero-byte (!?)
-				a = a.slice 1 if a.0 == 0
 				# create key storage
 				if (k = await apiCrypto.newSecret a, storeManager) == null
 					break
 				# STAGE 2: VERIFY
 				# encrypt first hash
-				b.headers['content-encoding'] = 'verify'
+				b.headers.etag = 'verify'
 				if (b.data = await k.encrypt hash.0) == null
 					break
 				# send it
@@ -714,23 +823,26 @@ httpFetch = do ->
 						x = true # confirm!
 						break
 				# ..repeat the attempt!
-			# update configuration
-			if x
-				handler.config.secret = k
-				k.manager k.current
-			# done
+			# store
+			if x and handler.config.secret = k.save!
+				apiCrypto.secretManagersPool.set k.manager
+			# complete
 			handshakeLocked := false
 			return x
 		# }}}
 	# }}}
 	ApiHandler = (handler) !-> # {{{
 		@get = (f, key) -> # {{{
+			# check property
+			switch key
+			case 'secret'
+				return !!handler.config.secret
+			default
+				if handler.config.hasOwnProperty key
+					return handler.config[key]
 			# check method/interface
 			if handler.api[key]
 				return handler.api[key]
-			# check property
-			if handler.config.hasOwnProperty key
-				return handler.config[key]
 			# nothing
 			return null
 		# }}}
@@ -742,7 +854,7 @@ httpFetch = do ->
 					# string
 					if typeof val == 'string'
 						handler.config[key] = val
-				case 'status200', 'noEmpty', 'fullSet'
+				case 'status200', 'notNull', 'fullHouse'
 					# boolean
 					handler.config[key] = !!val
 				case 'timeout'
@@ -752,6 +864,115 @@ httpFetch = do ->
 			# done
 			return true
 		# }}}
+	# }}}
+	# factories
+	newFormData = do -> # {{{
+		# prepare recursive helper function
+		add = (data, item, key) ->
+			# check type
+			switch typeof! item
+			case 'Object'
+				# object's own properties are iterated
+				# with the respect to definition order (top to bottom)
+				b = Object.getOwnPropertyNames item
+				if key
+					for a in b
+						add data, item[a], key+'['+a+']'
+				else
+					for a in b
+						add data, item[a], a
+			case 'Array'
+				# the data parameter may be array itself,
+				# in this case it is unfolded to a set of parameters,
+				# otherwise, additional brackets are added to the name,
+				# which is common (for example, to PHP parser)
+				key = if key
+					then key+'[]'
+					else ''
+				b = item.length
+				a = -1
+				while ++a < b
+					add data, item[a], key
+			case 'HTMLInputElement'
+				# file inputs are unfolded to FileLists
+				if item.type == 'file' and item.files.length
+					add data, item.files, key
+			case 'FileList'
+				# similar to the Array
+				if (b = item.length) == 1
+					data.append key, item.0
+				else
+					a = -1
+					while ++a < b
+						data.append key+'[]', item[a]
+			case 'Null'
+				# null will become 'null' string when appended,
+				# which is not expected(?!) in most cases, so,
+				# let's cast it to the empty string!
+				data.append key, ''
+			default
+				data.append key, item
+			# done
+			return data
+		# create simple factory
+		return (o) ->
+			return add new FormData!, o, ''
+	# }}}
+	newQueryString = do -> # {{{
+		# create recursive helper
+		add = (list, item, key) ->
+			# check item type
+			switch typeof! item
+			case 'Object'
+				b = Object.getOwnPropertyNames item
+				if key
+					for a in b
+						add list, item[a], key+'['+a+']'
+				else
+					for a in b
+						add list, item[a], a
+			case 'Array'
+				key = if key
+					then key+'[]'
+					else ''
+				b = item.length
+				a = -1
+				while ++a < b
+					add list, item[a], key
+			case 'Null'
+				list[*] = (encodeURIComponent key)+'='
+			default
+				list[*] = (encodeURIComponent key)+'='+(encodeURIComponent item)
+			# done
+			return list
+		# create simple factory
+		return (o) ->
+			return (add [], o, '').join '&'
+	# }}}
+	newPromise = (aborter) -> # {{{
+		# create standard promise and take out its resolver routine
+		a = null
+		b = new Promise (resolve) !->
+			a := resolve
+		# customize standard promise object
+		b.pending = true
+		b.resolve = a
+		b.controller = aborter
+		b.abort = b.cancel = !-> aborter.abort!
+		# done
+		return b
+	# }}}
+	newInstance = (baseConfig) -> (userConfig) -> # {{{
+		# create new configuration
+		config = new Config!
+		# initialize it
+		config.set baseConfig if baseConfig
+		config.set userConfig if userConfig
+		# create handlers
+		a = new FetchHandler config
+		b = new ApiHandler a
+		# create custom instance
+		return new Proxy a.fetch, b
 	# }}}
 	# create global instance
 	return (newInstance null) null

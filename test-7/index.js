@@ -3,88 +3,147 @@ var main;
 window.addEventListener('load', main = async function() {
     /*CODE*/
     ///
-    // encryption control
-    // prepare
-    var tSecret = document.querySelector('.control > textarea');
-    var bHand   = document.querySelector('.control > .b1');
-    var bReset  = document.querySelector('.control > .b2');
+    // Initialize
+    // create custom instance
     var myFetch = httpFetch.create({
-        baseUrl: 'http://localhost:8081/api/test/'
+        // for the future requests,
+        // setting this option is a convenient way to reduce url:
+        baseUrl: 'http://localhost:8081/api/test/',
+        // to display detailed information about request and response data,
+        // the following option must be enabled:
+        fullHouse: true
     });
-    var secretManager = function(key) {
+    // to handle secret key storage operations,
+    // a special callback function must be created:
+    var secretManager = function(op, data)
+    {
         var a, b, c;
         ///
-        // saves or restores shared secret
-        // the argument determines the type of operation (get or set),
-        // the browser's local storage is used here
-        if (key === '')
+        // check operation
+        switch (op)
         {
-            // reset
-            window.localStorage.removeItem('secret');
+            case 'get':
+                ///
+                // before any handshake attempt is made,
+                // previous secret may be queried from the storage of choice.
+                // here and below, the browser's local storage is used.
+                ///
+                if ((data = window.localStorage.getItem('mySecret')) === null) {
+                    data = '';
+                }
+                a = ' (localstorage)';
+                break;
+            case 'set':
+                ///
+                // after successful handshake or fetch response,
+                // secret may be saved to the storage of choice.
+                ///
+                window.localStorage.setItem('mySecret', data);
+                a = ' (exchange)';
+                break;
+            case 'destroy':
+                ///
+                // when something goes wrong and the secret should be destroyed,
+                // this operation erases it from the storage of choice.
+                ///
+                window.localStorage.removeItem('mySecret');
+                break;
         }
-        else if (key)
-        {
-            // set
-            window.localStorage.setItem('secret', key);
-            c = ' (exchange)';
-        }
-        else
-        {
-            // get
-            if ((key = window.localStorage.getItem('secret')) === null) {
-                key = '';
-            }
-            c = ' (localstorage)';
-        }
+        ///
         // display key information
-        if (key)
+        if (data)
         {
-            a = help.base64ToBuf(key);
-            b = a.slice(32);
-            a = a.slice(0, 32);
-            tSecret.value = "AES GCM encryption enabled"+c+"\n\n"+
-                "Cipher key (256bit): "+help.bufToHex(a)+"\n"+
-                "Counter/IV  (96bit): "+help.bufToHex(b)+"\n";
+            b = help.base64ToBuf(data);
+            c = b.slice(32);
+            tSecret.value = "AES GCM encryption enabled"+a+"\n\n"+
+                "Cipher key (256bit): "+help.bufToHex(b.slice(0,  32))+"\n"+
+                "Counter/IV  (96bit): "+
+                help.bufToHex(c.slice(0,  10))+" (private) + "+
+                help.bufToHex(c.slice(10, 12))+" (public)\n";
         }
         else {
             tSecret.value = '';
         }
-        // done
-        return key;
+        return data;
     };
-    // set event handlers
-    bHand.addEventListener('click', async function(e) {
+    ///
+    // Encryption control
+    // prepare
+    var tSecret    = document.querySelector('.control > textarea');
+    var bHandshake = document.querySelector('.control > .b1');
+    var bReset     = document.querySelector('.control > .b2');
+    // set events
+    bHandshake.addEventListener('click', async function(e) {
         ///
-        // lock button
-        this.disabled = true;
-        // establish shared secret
+        // try to establish shared secret.
+        // repeated handshakes will fail until first is resolved, so
+        // it is safe (but useless) to invoke this function multiple times.
+        ///
         if (await myFetch.handshake('ecdh', secretManager))
         {
-            // unlock reset
+            ///
+            // positive result means that future requests made
+            // with this httpFetch instance will be encrypted.
+            // next handshake call will destory current secret
+            // and initiate new exchange. to disable this behaviour,
+            // disable this button:
+            ///
+            bHandshake.disabled = true;
             bReset.disabled = false;
-        }
-        else
-        {
-            // reset on failure
-            this.disabled = false;
-            tSecret.value = '';
         }
     });
     bReset.addEventListener('click', function(e) {
         ///
-        // reset
-        this.disabled  = true;
-        bHand.disabled = false;
-        tSecret.value  = '';
-        myFetch.handshake();
+        // check if encryption enabled
+        if (myFetch.secret)
+        {
+            // the secret key will be destoyed and encryption disabled,
+            // when handshake is called without parameters:
+            myFetch.handshake();
+            // reset buttons
+            bHandshake.disabled = false;
+            bReset.disabled = true;
+        }
     });
     ///
-    // content-type: plain/text
+    // content-type: text/plain
     // preapre
-    var bSend = document.querySelector('.message.text button');
-    var tArea = [...document.querySelectorAll('.message.text textarea')];
+    var bSend = document.querySelector('.test.n1 button');
+    var tArea = [...document.querySelectorAll('.test.n1 textarea')];
     // set event handler
-    bSend.addEventListener('click', function(e) {
+    bSend.addEventListener('click', async function(e) {
+        var a, b;
+        ///
+        // clear
+        tArea[1].value = '';
+        tArea[2].value = '';
+        tArea[3].value = '';
+        // send message with encryption enabled
+        a = await myFetch({
+            url: 'echo',
+            headers: {'content-type': 'text/plain'},
+            data: tArea[0].value,
+            timeout: 0
+        });
+        // display results
+        if (a instanceof Error)
+        {
+            console.log(a);
+        }
+        else if (!a)
+        {
+            console.log('empty response');
+        }
+        else
+        {
+            if (b = a.request.crypto) {
+                tArea[1].value = help.bufToHex(b.data);
+            }
+            tArea[2].value = a.data;
+            if (b = a.crypto) {
+                tArea[3].value = help.bufToHex(b.data);
+            }
+        }
     });
     /*CODE*/
     var help = {

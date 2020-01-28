@@ -2,24 +2,317 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, Config, RetryConfig, ResponseData, FetchOptions, FetchError, FetchHandlerData, FetchHandler, newPromise, newInstance, apiCrypto, Api, ApiHandler;
-  api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise];
+  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, Config, RetryConfig, ResponseData, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
     return null;
   }
+  jsonDecode = function(s){
+    var e;
+    if (s) {
+      try {
+        return JSON.parse(s);
+      } catch (e$) {
+        e = e$;
+        throw new FetchError('incorrect JSON: ' + s, 0);
+      }
+    }
+    return null;
+  };
+  jsonEncode = function(o){
+    try {
+      return JSON.stringify(o);
+    } catch (e$) {
+      e$;
+      return null;
+    }
+  };
+  textDecode = function(){
+    var t;
+    t = new TextDecoder('utf-8');
+    return function(buf){
+      return t.decode(buf);
+    };
+  }();
+  textEncode = function(){
+    var t;
+    t = new TextEncoder();
+    return function(str){
+      return t.encode(str);
+    };
+  }();
+  apiCrypto = function(){
+    var CS, nullFunc, bufToHex, hexToBuf, bufToBigInt, bigIntToBuf, newCryptoData;
+    if (typeof crypto === 'undefined' || !crypto.subtle) {
+      console.log('httpFetch: Web Crypto API is not available');
+      return null;
+    }
+    CS = crypto.subtle;
+    nullFunc = function(){
+      return null;
+    };
+    bufToHex = function(){
+      var hex, i, n;
+      hex = [];
+      i = -1;
+      n = 256;
+      while (++i < n) {
+        hex[i] = i.toString(16).padStart(2, '0');
+      }
+      return function(buf){
+        var a, b, i, n;
+        a = new Uint8Array(buf);
+        b = [];
+        i = -1;
+        n = a.length;
+        while (++i < n) {
+          b[i] = hex[a[i]];
+        }
+        return b.join('');
+      };
+    }();
+    hexToBuf = function(hex){
+      var len, buf, i, j;
+      if ((len = hex.length) % 2) {
+        hex = '0' + hex;
+        ++len;
+      }
+      len = len / 2;
+      buf = new Uint8Array(len);
+      i = -1;
+      j = 0;
+      while (++i < len) {
+        buf[i] = parseInt(hex.slice(j, j + 2), 16);
+        j += 2;
+      }
+      return buf;
+    };
+    bufToBigInt = function(buf){
+      return BigInt('0x' + bufToHex(buf));
+    };
+    bigIntToBuf = function(bi, size){
+      var buf, len, big;
+      buf = hexToBuf(bi.toString(16));
+      if (!size || (len = buf.length) === size) {
+        return buf;
+      }
+      if (len > size) {
+        buf = buf.slice(len - size);
+      } else {
+        big = new Uint8Array(size);
+        big.set(buf, size - len);
+        buf = big;
+      }
+      return buf;
+    };
+    newCryptoData = function(){
+      var CryptoData;
+      CryptoData = function(){
+        this.data = null;
+        this.key = null;
+      };
+      return function(store){
+        return function(data){
+          var a;
+          a = new CryptoData();
+          a.data = data;
+          a.key = store.secret;
+          return a;
+        };
+      };
+    }();
+    return {
+      cs: CS,
+      secretManagersPool: new WeakMap(),
+      keyParams: {
+        name: 'ECDH',
+        namedCurve: 'P-521'
+      },
+      derivePublicKey: {
+        name: 'HMAC',
+        hash: 'SHA-512',
+        length: 528
+      },
+      deriveParams: {
+        name: 'HMAC',
+        hash: 'SHA-512',
+        length: 528
+      },
+      generateKeyPair: async function(){
+        var k, a;
+        k = (await CS.generateKey(this.keyParams, true, ['deriveKey'])['catch'](nullFunc));
+        if (k === null) {
+          return null;
+        }
+        a = (await CS.exportKey('spki', k.publicKey)['catch'](nullFunc));
+        return a === null
+          ? null
+          : [k.privateKey, a];
+      },
+      generateHashPair: async function(){
+        var a, b;
+        a = (await CS.generateKey(this.deriveParams, true, ['sign'])['catch'](nullFunc));
+        if (a === null) {
+          return null;
+        }
+        a = (await CS.exportKey('raw', a)['catch'](nullFunc));
+        if (a === null) {
+          return null;
+        }
+        b = (await CS.digest('SHA-512', a)['catch'](nullFunc));
+        if (b === null) {
+          return null;
+        }
+        a = new Uint8Array(a);
+        b = new Uint8Array(b);
+        return [a, b];
+      },
+      importKey: function(k){
+        return CS.importKey('spki', k, this.keyParams, true, [])['catch'](nullFunc);
+      },
+      importEcdhKey: function(k){
+        return CS.importKey('raw', k, {
+          name: 'AES-GCM'
+        }, false, ['encrypt', 'decrypt'])['catch'](nullFunc);
+      },
+      deriveKey: function(privateK, publicK){
+        publicK = {
+          name: 'ECDH',
+          'public': publicK
+        };
+        return CS.deriveKey(publicK, privateK, this.deriveParams, true, ['sign'])['catch'](nullFunc);
+      },
+      bufToBase64: function(buf){
+        var a;
+        a = new Uint8Array(buf);
+        return btoa(String.fromCharCode.apply(null, a));
+      },
+      base64ToBuf: function(str){
+        var a, b, c, d;
+        a = atob(str);
+        b = a.length;
+        c = new Uint8Array(b);
+        d = -1;
+        while (++d < b) {
+          c[d] = a.charCodeAt(d);
+        }
+        return c;
+      },
+      newSecret: function(){
+        var CipherParams, SecretStorage;
+        CipherParams = function(iv){
+          this.name = 'AES-GCM';
+          this.iv = iv;
+          this.tagLength = 128;
+        };
+        SecretStorage = function(manager, secret, key, iv){
+          this.manager = manager;
+          this.secret = secret;
+          this.key = key;
+          this.params = new CipherParams(iv);
+          this.newData = newCryptoData(this);
+        };
+        SecretStorage.prototype = {
+          encrypt: function(data){
+            if (typeof data === 'string') {
+              data = textEncode(data);
+            }
+            return CS.encrypt(this.params, this.key, data)['catch'](nullFunc);
+          },
+          decrypt: function(data){
+            if (typeof data === 'string') {
+              data = textEncode(data);
+            }
+            return CS.decrypt(this.params, this.key, data)['catch'](nullFunc);
+          },
+          next: function(){
+            var a, b, c, d, e;
+            a = this.params.iv;
+            b = new DataView(a.buffer, 10, 2);
+            c = bufToBigInt(a.slice(0, 10));
+            d = b.getUint16(0, false);
+            if ((e = ++c - 1208925819614629174706176n) >= 0) {
+              c = e;
+            }
+            if ((e = ++d - 65536) >= 0) {
+              d = e;
+            }
+            a.set(bigIntToBuf(c, 10), 0);
+            b.setUint16(0, d, false);
+            this.secret.set(a, 32);
+            return this;
+          },
+          tag: function(){
+            return bufToHex(this.secret.slice(-2));
+          },
+          save: function(){
+            return this.manager('set', apiCrypto.bufToBase64(this.secret)) ? this : null;
+          }
+        };
+        return async function(secret, manager){
+          var k, c;
+          switch (toString$.call(secret).slice(8, -1)) {
+          case 'String':
+            secret = apiCrypto.base64ToBuf(secret);
+            break;
+          case 'CryptoKey':
+            secret = (await apiCrypto.cs.exportKey('raw', secret));
+            secret = new Uint8Array(secret);
+            if (secret[0] === 0) {
+              secret = secret.slice(1);
+            }
+            break;
+          default:
+            return null;
+          }
+          if (secret.length < 44) {
+            return null;
+          }
+          secret = secret.slice(0, 44);
+          k = secret.slice(0, 32);
+          c = secret.slice(32, 32 + 12);
+          if ((k = (await apiCrypto.importEcdhKey(k))) === null) {
+            return null;
+          }
+          return new SecretStorage(manager, secret, k, c);
+        };
+      }()
+    };
+  }();
   Config = function(){
     this.baseUrl = '';
     this.status200 = true;
-    this.fullSet = false;
-    this.noEmpty = false;
+    this.fullHouse = false;
+    this.notNull = false;
     this.timeout = 20;
     this.retry = null;
     this.secret = null;
     this.headers = {
-      'accept': 'application/json',
       'content-type': 'application/json; charset=utf-8'
     };
+  };
+  Config.prototype = {
+    set: function(){
+      var baseOptions;
+      baseOptions = ['baseUrl', 'status200', 'fullHouse', 'notNull', 'timeout'];
+      return function(o){
+        var i$, ref$, len$, a, b;
+        for (i$ = 0, len$ = (ref$ = baseOptions).length; i$ < len$; ++i$) {
+          a = ref$[i$];
+          if (o.hasOwnProperty(a)) {
+            this[a] = o[a];
+          }
+        }
+        if (o.headers) {
+          this.headers = {};
+          for (a in ref$ = o.headers) {
+            b = ref$[a];
+            this.headers[a.toLowerCase()] = b;
+          }
+        }
+      };
+    }()
   };
   RetryConfig = function(){
     this.count = 15;
@@ -29,9 +322,28 @@ httpFetch = function(){
     this.delay = 1;
   };
   ResponseData = function(){
-    this.headers = null;
-    this.data = null;
-  };
+    var RequestData, ResponseData;
+    RequestData = function(){
+      this.headers = null;
+      this.data = null;
+      this.crypto = null;
+    };
+    return ResponseData = function(){
+      this.status = 0;
+      this.headers = null;
+      this.data = null;
+      this.crypto = null;
+      this.request = new RequestData();
+    };
+  }();
+  ResponseData.prototype = function(){
+    return {
+      addCrypto: function(){
+        this.crypto = new CryptoData();
+        this.request.crypto = new CryptoData();
+      }
+    };
+  }();
   FetchOptions = function(method){
     this.method = method;
     this.body = null;
@@ -59,97 +371,33 @@ httpFetch = function(){
     E.prototype = Error.prototype;
     return E;
   }();
-  FetchHandlerData = function(){
+  FetchData = function(config){
     var this$ = this;
-    this.aborter = null;
-    this.timeout = 0;
-    this.timer = 0;
-    this.retry = new RetryConfig();
     this.promise = null;
     this.response = new ResponseData();
+    this.aborter = null;
+    this.timer = 0;
     this.timerFunc = function(){
-      this$.aborter.abort();
       this$.timer = 0;
+      this$.aborter.abort();
     };
+    this.retry = new RetryConfig();
+    this.status200 = config.status200;
+    this.fullHouse = config.fullHouse;
+    this.notNull = config.notNull;
+    this.timeout = 1000 * config.timeout;
   };
   FetchHandler = function(config){
-    var jsonParser, newFormData, handler;
-    jsonParser = function(r){
-      var e;
-      if (r) {
-        try {
-          return JSON.parse(r);
-        } catch (e$) {
-          e = e$;
-          throw new FetchError('Incorrect response: ' + r, 0);
-        }
-      }
-      return config.noEmpty ? {} : null;
-    };
-    newFormData = function(){
-      var add;
-      add = function(data, item, key){
-        var t, i$, len$, k;
-        switch (toString$.call(item).slice(8, -1)) {
-        case 'Object':
-          t = Object.getOwnPropertyNames(item);
-          if (key) {
-            for (i$ = 0, len$ = t.length; i$ < len$; ++i$) {
-              k = t[i$];
-              add(data, item[k], key + '[' + k + ']');
-            }
-          } else {
-            for (i$ = 0, len$ = t.length; i$ < len$; ++i$) {
-              k = t[i$];
-              add(data, item[k], k);
-            }
-          }
-          break;
-        case 'Array':
-          t = item.length;
-          k = -1;
-          if (key) {
-            while (++k < t) {
-              add(data, item[k], key + '[]');
-            }
-          } else {
-            while (++k < t) {
-              add(data, item[k], '');
-            }
-          }
-          break;
-        case 'HTMLInputElement':
-          if (item.type === 'file' && (t = item.files.length)) {
-            add(data, item.files, key);
-          }
-          break;
-        case 'FileList':
-          if ((t = item.length) === 1) {
-            data.append(key, item[0]);
-          } else {
-            k = -1;
-            while (++k < t) {
-              data.append(key + '[]', item[k]);
-            }
-          }
-          break;
-        case 'Null':
-          data.append(key, '');
-          break;
-        default:
-          data.append(key, item);
-        }
-        return data;
-      };
-      return function(o){
-        return add(new FormData(), o, '');
-      };
-    }();
+    var handler;
     handler = function(url, options, data, callback){
-      var responseHandler, successHandler, errorHandler, handlerFunc;
+      var responseHandler, successHandler, errorHandler;
       responseHandler = function(r){
         var h, a, b;
-        if (!r.ok || (r.status !== 200 && config.status200)) {
+        if (data.timer) {
+          clearTimeout(data.timer);
+          data.timer = 0;
+        }
+        if (!r.ok || (r.status !== 200 && data.status200)) {
           throw new FetchError(r.statusText, r.status);
         }
         h = {};
@@ -157,138 +405,204 @@ httpFetch = function(){
         while (!(b = a.next()).done) {
           h[b.value[0].toLowerCase()] = b.value[1];
         }
-        if (options.fullSet) {
-          data.response.headers = h;
+        data.response.status = r.status;
+        data.response.headers = h;
+        if (a = h['content-encoding']) {
+          if (a !== 'aes256gcm') {
+            throw new FetchError('incorrect content-encoding', r.status);
+          }
+          if (!config.secret) {
+            throw new FetchError('unable to decrypt, no shared secret', r.status);
+          }
+          return r.arrayBuffer();
         }
-        a = h['content-type']
-          ? h['content-type']
-          : options.headers.accept;
+        a = options.headers.accept || h['content-type'] || '';
         switch (0) {
         case a.indexOf('application/json'):
-          return r.text().then(jsonParser);
+          return r.text().then(jsonDecode);
         case a.indexOf('application/octet-stream'):
-          return r.arrayBuffer().then(function(r){
-            if (h['content-encoding'] === 'aes256gcm' && config.secret) {
-              true;
-            }
-            return r;
-          });
+          return r.arrayBuffer();
         default:
           return r.text();
         }
       };
-      successHandler = function(r){
-        if (data.timer) {
-          clearTimeout(data.timer);
-          data.timer = 0;
+      successHandler = async function(d){
+        var res, sec, a, b;
+        res = data.response;
+        sec = config.secret;
+        if (sec) {
+          if (d && res.headers['content-encoding']) {
+            if ((a = (await sec.next().decrypt(d))) === null) {
+              sec.manager('error');
+              throw new FetchError('failed to decrypt the response', res.status);
+            }
+            res.crypto = sec.newData(d);
+            sec.save();
+            b = options.headers.accept || res.headers['content-type'] || '';
+            switch (0) {
+            case b.indexOf('application/json'):
+              d = jsonDecode(a);
+              break;
+            case b.indexOf('text/plain'):
+              d = textDecode(a);
+              break;
+            default:
+              d = a;
+            }
+          } else {
+            sec.save();
+          }
         }
-        if (options.fullSet) {
-          data.response.data = r;
-          r = data.response;
+        if (d === null && data.notNull) {
+          d = {};
+        }
+        if (data.fullHouse) {
+          res.data = d;
+        } else {
+          res = d;
         }
         if (callback) {
-          callback(true, r);
+          callback(true, res);
         } else {
           data.promise.pending = false;
-          data.promise.resolve(r);
+          data.promise.resolve(res);
         }
       };
       errorHandler = function(e){
-        var a, b;
-        if (data.timer) {
-          clearTimeout(data.timer);
-          data.timer = 0;
-        }
-        if (callback && !callback(false, e)) {
-          return;
-        }
-        for (;;) {
-          if (!(e instanceof FetchError) || e.status === 0) {
-            break;
-          }
-          if (!(a = data.retry).count || a.current < a.count) {
-            break;
-          }
-          if (a.expoBackoff) {
-            b = Math.pow(2, a.current) + Math.floor(1001 * Math.random());
-            if (b > a.maxBackoff) {
-              b = a.maxBackoff;
-            }
-          } else {
-            if (typeof a.delay === 'number') {
-              b = 1000 * a.delay;
-            } else {
-              if (a.current <= (b = a.delay.length - 1)) {
-                b = 1000 * a.delay[a.current];
-              } else {
-                b = 1000 * a.delay[b];
-              }
-            }
-          }
-          ++a.current;
-          setTimeout(handlerFunc, b);
-          return;
-        }
-        if (!callback) {
+        if (callback) {
+          callback(false, e);
+        } else {
           data.promise.pending = false;
           data.promise.resolve(e);
         }
+        /***
+        # TODO: retry request?!
+        while true
+        	# check for incorrect response
+        	if not (e instanceof FetchError) or e.status == 0
+        		break
+        	# check limit
+        	if not (a = data.retry).count or a.current < a.count
+        		break
+        	# determine delay
+        	if a.expoBackoff
+        		# exponential backoff algorithm
+        		# https://cloud.google.com/storage/docs/exponential-backoff
+        		b = 2**a.current + Math.floor (1001 * Math.random!)
+        		b = a.maxBackoff if b > a.maxBackoff
+        	else
+        		# fixed delay
+        		if typeof a.delay == 'number'
+        			# simple
+        			b = 1000*a.delay
+        		else
+        			# gradual
+        			if a.current <= (b = a.delay.length - 1)
+        				b = 1000*a.delay[a.current]
+        			else
+        				b = 1000*a.delay[b]
+        	# increase current
+        	++a.current
+        	# activate re-try
+        	setTimeout handlerFunc, b
+        	return
+        /***/
       };
-      return handlerFunc = function(){
-        if (data.timeout) {
-          data.timer = setTimeout(data.timerFunc, data.timeout);
-        }
-        fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
-      };
+      if (data.timeout) {
+        data.timer = setTimeout(data.timerFunc, data.timeout);
+      }
+      return fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
     };
     this.config = config;
     this.api = new Api(this);
     this.fetch = function(options, callback){
       var a, o, d, b, c;
-      if (toString$.call(options).slice(8, -1) !== 'Object') {
-        return null;
+      if (toString$.call(options).slice(8, -1) !== 'Object' || callback && typeof callback !== 'function') {
+        return new Error('incorrect parameters');
       }
       a = options.hasOwnProperty('method')
         ? options.method
         : options.data ? 'POST' : 'GET';
       o = new FetchOptions(a);
-      d = new FetchHandlerData();
-      import$(o.headers, config.headers);
+      d = new FetchData(config);
+      if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
+        d.timeout = 1000 * a;
+      }
+      if (options.hasOwnProperty('status200')) {
+        d.status200 = !!options.status200;
+      }
+      if (options.hasOwnProperty('fullHouse')) {
+        d.fullHouse = !!options.fullHouse;
+      }
+      if (options.hasOwnProperty('notNull')) {
+        d.notNull = !!options.notNull;
+      }
+      d.response.request.headers = import$(o.headers, config.headers);
       if (a = options.headers) {
         for (b in a) {
           o.headers[b.toLowerCase()] = a[b];
         }
       }
-      if (options.data) {
+      if (a = config.secret) {
+        o.headers['content-encoding'] = 'aes256gcm';
+        o.headers['etag'] = a.next().tag();
+      }
+      if (c = options.data) {
         a = o.headers['content-type'];
-        switch (0) {
-        case a.indexOf('application/json'):
-          o.body = typeof options.data === 'string'
-            ? options.data
-            : JSON.stringify(options.data);
-          break;
-        case a.indexOf('multipart/form-data'):
-          o.body = toString$.call(options.data).slice(8, -1) === 'FormData'
-            ? options.data
-            : newFormData(options.data);
-          delete o.headers['content-type'];
-          break;
-        default:
-          if (options.data) {
-            o.body = options.data;
+        b = toString$.call(c).slice(8, -1);
+        if (config.secret) {
+          switch (0) {
+          case a.indexOf('application/x-www-form-urlencoded'):
+            o.headers['content-type'] = 'application/json';
+            // fallthrough
+          case a.indexOf('application/json'):
+            if (b !== 'String' && !(c = jsonEncode(c))) {
+              return new Error('failed to encode request data');
+            }
+            break;
+          case a.indexOf('multipart/form-data'):
+            if (b === 'String' || b === 'FormData') {
+              return new Error('incorrect request data');
+            }
+            delete o.headers['content-type'];
+            break;
+          default:
+            if (b !== 'String' && b !== 'ArrayBuffer') {
+              return new Error('incorrect request data');
+            }
+          }
+        } else {
+          switch (0) {
+          case a.indexOf('application/json'):
+            if (b !== 'String' && (c = jsonEncode(c)) === null) {
+              return new Error('failed to encode request data');
+            }
+            break;
+          case a.indexOf('application/x-www-form-urlencoded'):
+            if ((b !== 'String' && b !== 'URLSearchParams') && !(c = newQueryString(c))) {
+              return new Error('failed to encode request data');
+            }
+            break;
+          case a.indexOf('multipart/form-data'):
+            if ((b !== 'String' && b !== 'FormData') && !(c = newFormData(c))) {
+              return new Error('failed to encode request data');
+            }
+            if (b !== 'String') {
+              delete o.headers['content-type'];
+            }
+            break;
+          default:
+            if (b !== 'String' && b !== 'ArrayBuffer') {
+              return new Error('incorrect request data');
+            }
           }
         }
+        o.body = d.response.request.data = c;
       }
       d.aborter = options.aborter
         ? options.aborter
         : new AbortController();
       o.signal = d.aborter.signal;
-      a = options.hasOwnProperty('timeout')
-        ? options.timeout
-        : config.timeout;
-      if (a >= 1) {
-        d.timeout = 1000 * a;
-      }
       a = d.retry;
       if (b = config.retry) {
         for (c in a) {
@@ -314,250 +628,29 @@ httpFetch = function(){
       a = options.url
         ? config.baseUrl + options.url
         : config.baseUrl;
-      handler(a, o, d, callback)();
+      if (config.secret) {
+        config.secret.encrypt(o.body).then(function(c){
+          o.body = c;
+          d.response.request.crypto = config.secret.newData(c);
+          if (!o.signal.aborted) {
+            handler(a, o, d, callback);
+          }
+        })['catch'](function(e){
+          if (callback) {
+            callback(false, e);
+          } else {
+            d.promise.pending = false;
+            d.promise.resolve(e);
+          }
+        });
+      } else {
+        handler(a, o, d, callback);
+      }
       return callback
         ? d.aborter
         : d.promise;
     };
   };
-  newPromise = function(aborter){
-    var a, b;
-    a = null;
-    b = new Promise(function(resolve){
-      a = resolve;
-    });
-    b.pending = true;
-    b.resolve = a;
-    b.controller = aborter;
-    b.abort = b.cancel = function(){
-      aborter.abort();
-    };
-    return b;
-  };
-  newInstance = function(baseConfig){
-    return function(userConfig){
-      var config, i$, ref$, len$, c, a, ref1$, b;
-      config = new Config();
-      for (i$ = 0, len$ = (ref$ = [baseConfig, userConfig]).length; i$ < len$; ++i$) {
-        c = ref$[i$];
-        if (c) {
-          for (a in config) {
-            if (c.hasOwnProperty(a)) {
-              config[a] = c[a];
-            }
-          }
-          if (c.retry) {
-            config.retry = import$(new RetryConfig(), c.retry);
-          }
-          if (c.headers) {
-            config.headers = {};
-            for (a in ref1$ = c.headers) {
-              b = ref1$[a];
-              config.headers[a.toLowerCase()] = b;
-            }
-          }
-        }
-      }
-      a = new FetchHandler(config);
-      b = new ApiHandler(a);
-      return new Proxy(a.fetch, b);
-    };
-  };
-  apiCrypto = function(){
-    if (typeof crypto === 'undefined' || !crypto.subtle) {
-      console.log('httpFetch: Crypto API is not supported');
-      return null;
-    }
-    return {
-      keyParams: {
-        name: 'ECDH',
-        namedCurve: 'P-521'
-      },
-      deriveParams: {
-        name: 'HMAC',
-        hash: 'SHA-512',
-        length: 528
-      },
-      nullFunc: function(){
-        return null;
-      },
-      generateKeyPair: async function(){
-        var k, a;
-        k = (await crypto.subtle.generateKey(this.keyParams, true, ['deriveKey'])['catch'](this.nullFunc));
-        if (k === null) {
-          return null;
-        }
-        a = (await crypto.subtle.exportKey('spki', k.publicKey)['catch'](this.nullFunc));
-        if (a === null) {
-          return null;
-        }
-        return {
-          privateKey: k.privateKey,
-          publicKey: a
-        };
-      },
-      generateHashPair: async function(){
-        var a, b;
-        a = (await crypto.subtle.generateKey(this.deriveParams, true, ['sign'])['catch'](this.nullFunc));
-        if (a === null) {
-          return null;
-        }
-        a = (await crypto.subtle.exportKey('raw', a)['catch'](this.nullFunc));
-        if (a === null) {
-          return null;
-        }
-        b = (await crypto.subtle.digest('SHA-512', a)['catch'](this.nullFunc));
-        if (b === null) {
-          return null;
-        }
-        a = new Uint8Array(a);
-        b = new Uint8Array(b);
-        return [a, b];
-      },
-      importKey: function(k){
-        return crypto.subtle.importKey('spki', k, this.keyParams, true, [])['catch'](this.nullFunc);
-      },
-      deriveKey: function(privateKey, publicKey){
-        return crypto.subtle.deriveKey({
-          name: 'ECDH',
-          'public': publicKey
-        }, privateKey, this.deriveParams, true, ['sign'])['catch'](this.nullFunc);
-      },
-      bufToHex: function(){
-        var hex, i, n;
-        hex = [];
-        i = -1;
-        n = 255;
-        while (++i < n) {
-          hex[i] = i.toString(16).padStart(2, '0');
-        }
-        return function(buf){
-          var a, b, i, n;
-          a = new Uint8Array(buf);
-          b = [];
-          i = -1;
-          n = a.length;
-          while (++i < n) {
-            b[i] = hex[a[i]];
-          }
-          return b.join('');
-        };
-      }(),
-      bufToBase64: function(buf){
-        var a;
-        a = new Uint8Array(buf);
-        return btoa(String.fromCharCode.apply(null, a));
-      },
-      base64ToBuf: function(str){
-        var a, b, c, d;
-        a = atob(str);
-        b = a.length;
-        c = new Uint8Array(b);
-        d = -1;
-        while (++d < b) {
-          c[d] = a.charCodeAt(d);
-        }
-        return c;
-      },
-      bufToBn: function(buf){
-        var hex, u8, c, i, h;
-        hex = [];
-        u8 = Uint8Array.from(buf);
-        c = u8.length;
-        i = -1;
-        while (++i < c) {
-          h = u8[i].toString(16);
-          if (h.length % 2) {
-            h = '0' + h;
-          }
-          hex[i] = h;
-        }
-        return BigInt('0x' + hex.join(''));
-      },
-      bnToBuf: function(bn, size){
-        var hex, len, pad, u8, i, j;
-        size == null && (size = 0);
-        hex = BigInt(bn).toString(16);
-        if (hex.length % 2) {
-          hex = '0' + hex;
-        }
-        len = hex.length / 2;
-        if (!size) {
-          size = len;
-        }
-        if ((pad = size - len) < 0) {
-          hex = hex.slice(-pad * 2);
-          pad = 0;
-        }
-        u8 = new Uint8Array(size);
-        i = pad;
-        j = i * 2;
-        while (i < size) {
-          u8[i] = parseInt(hex.slice(j, j + 2), 16);
-          i += 1;
-          j += 2;
-        }
-        return u8;
-      },
-      newSecret: function(){
-        var CipherParams, SecretStorage;
-        CipherParams = function(iv){
-          this.name = 'AES-GCM';
-          this.iv = iv;
-          this.tagLength = 128;
-        };
-        SecretStorage = function(manager, key, iv, current, next){
-          this.manager = manager;
-          this.key = key;
-          this.params = new CipherParams(iv);
-          this.current = current;
-          this.next = next;
-        };
-        SecretStorage.prototype = {
-          nullFunc: function(){
-            return null;
-          },
-          stringToBuf: TextEncoder.prototype.encode.bind(new TextEncoder()),
-          bufToString: TextDecoder.prototype.decode.bind(new TextDecoder('utf-8')),
-          encrypt: function(data){
-            if (typeof data === 'string') {
-              data = this.stringToBuf(data);
-            }
-            return crypto.subtle.encrypt(this.params, this.key, data)['catch'](this.nullFunc);
-          },
-          decrypt: function(data){
-            return crypto.subtle.decrypt(this.params, this.key, data)['catch'](this.nullFunc);
-          }
-        };
-        return async function(ecdh_secret, manager){
-          var s, c, k, c1, c2, n;
-          if (!ecdh_secret || ecdh_secret.length < 44) {
-            return null;
-          }
-          ecdh_secret = ecdh_secret.slice(0, 44);
-          s = ecdh_secret.slice(0, 32);
-          c = ecdh_secret.slice(32, 32 + 12);
-          k = (await crypto.subtle.importKey('raw', s, {
-            name: 'AES-GCM'
-          }, false, ['encrypt', 'decrypt'])['catch'](this.nullFunc));
-          if (k === null) {
-            return null;
-          }
-          c1 = this.bufToBn(c.slice(0, 6));
-          c2 = this.bufToBn(c.slice(6, 12));
-          ++c1;
-          ++c2;
-          c1 = this.bnToBuf(c1, 6);
-          c2 = this.bnToBuf(c2, 6);
-          n = new Uint8Array(32 + 12);
-          n.set(s, 0);
-          n.set(c1, 32);
-          n.set(c2, 32 + 6);
-          return new SecretStorage(manager, k, c, this.bufToBase64(ecdh_secret), this.bufToBase64(n));
-        };
-      }()
-    };
-  }();
   Api = function(handler){
     var handshakeLocked;
     this.create = newInstance(handler.config);
@@ -584,26 +677,27 @@ httpFetch = function(){
     }
     handshakeLocked = false;
     this.handshake = async function(url, storeManager){
-      var a, k, hash, x, c, b, i;
+      var k, hash, x, c, b, a, i;
       if (handshakeLocked) {
         return false;
       }
       if (!storeManager) {
-        if (a = handler.config.secret) {
+        if (k = handler.config.secret) {
           handler.config.secret = null;
-          a.manager('');
+          apiCrypto.secretManagersPool['delete'](k.manager);
+          k.manager('destroy', '');
         }
         return true;
       }
+      if (apiCrypto.secretManagersPool.has(storeManager)) {
+        console.log('httpFetch: secret store manager must be unique');
+        return false;
+      }
       handshakeLocked = true;
-      if (a = storeManager()) {
-        a = apiCrypto.base64ToBuf(a);
-        if ((k = (await apiCrypto.newSecret(a, storeManager))) === null) {
-          return false;
-        }
-        handler.config.secret = k;
+      if (k = storeManager('get')) {
+        k = handler.config.secret = (await apiCrypto.newSecret(k, storeManager));
         handshakeLocked = false;
-        return true;
+        return !!k;
       }
       if (!(hash = (await apiCrypto.generateHashPair()))) {
         handshakeLocked = false;
@@ -618,12 +712,12 @@ httpFetch = function(){
         b = {
           url: url,
           method: 'POST',
-          data: k.publicKey,
+          data: k[1],
           headers: {
-            'accept': 'application/octet-stream',
             'content-type': 'application/octet-stream',
-            'content-encoding': 'exchange'
+            'etag': 'exchange'
           },
+          fullHouse: false,
           timeout: 0
         };
         a = (await handler.fetch(b));
@@ -633,18 +727,13 @@ httpFetch = function(){
         if ((a = (await apiCrypto.importKey(a))) === null) {
           break;
         }
-        if ((a = (await apiCrypto.deriveKey(k.privateKey, a))) === null) {
+        if ((a = (await apiCrypto.deriveKey(k[0], a))) === null) {
           break;
-        }
-        a = (await crypto.subtle.exportKey('raw', a));
-        a = new Uint8Array(a);
-        if (a[0] === 0) {
-          a = a.slice(1);
         }
         if ((k = (await apiCrypto.newSecret(a, storeManager))) === null) {
           break;
         }
-        b.headers['content-encoding'] = 'verify';
+        b.headers.etag = 'verify';
         if ((b.data = (await k.encrypt(hash[0]))) === null) {
           break;
         }
@@ -668,9 +757,8 @@ httpFetch = function(){
           }
         }
       }
-      if (x) {
-        handler.config.secret = k;
-        k.manager(k.current);
+      if (x && (handler.config.secret = k.save())) {
+        apiCrypto.secretManagersPool.set(k.manager);
       }
       handshakeLocked = false;
       return x;
@@ -678,11 +766,16 @@ httpFetch = function(){
   };
   ApiHandler = function(handler){
     this.get = function(f, key){
+      switch (key) {
+      case 'secret':
+        return !!handler.config.secret;
+      default:
+        if (handler.config.hasOwnProperty(key)) {
+          return handler.config[key];
+        }
+      }
       if (handler.api[key]) {
         return handler.api[key];
-      }
-      if (handler.config.hasOwnProperty(key)) {
-        return handler.config[key];
       }
       return null;
     };
@@ -695,8 +788,8 @@ httpFetch = function(){
           }
           break;
         case 'status200':
-        case 'noEmpty':
-        case 'fullSet':
+        case 'notNull':
+        case 'fullHouse':
           handler.config[key] = !!val;
           break;
         case 'timeout':
@@ -706,6 +799,128 @@ httpFetch = function(){
         }
       }
       return true;
+    };
+  };
+  newFormData = function(){
+    var add;
+    add = function(data, item, key){
+      var b, i$, len$, a;
+      switch (toString$.call(item).slice(8, -1)) {
+      case 'Object':
+        b = Object.getOwnPropertyNames(item);
+        if (key) {
+          for (i$ = 0, len$ = b.length; i$ < len$; ++i$) {
+            a = b[i$];
+            add(data, item[a], key + '[' + a + ']');
+          }
+        } else {
+          for (i$ = 0, len$ = b.length; i$ < len$; ++i$) {
+            a = b[i$];
+            add(data, item[a], a);
+          }
+        }
+        break;
+      case 'Array':
+        key = key ? key + '[]' : '';
+        b = item.length;
+        a = -1;
+        while (++a < b) {
+          add(data, item[a], key);
+        }
+        break;
+      case 'HTMLInputElement':
+        if (item.type === 'file' && item.files.length) {
+          add(data, item.files, key);
+        }
+        break;
+      case 'FileList':
+        if ((b = item.length) === 1) {
+          data.append(key, item[0]);
+        } else {
+          a = -1;
+          while (++a < b) {
+            data.append(key + '[]', item[a]);
+          }
+        }
+        break;
+      case 'Null':
+        data.append(key, '');
+        break;
+      default:
+        data.append(key, item);
+      }
+      return data;
+    };
+    return function(o){
+      return add(new FormData(), o, '');
+    };
+  }();
+  newQueryString = function(){
+    var add;
+    add = function(list, item, key){
+      var b, i$, len$, a;
+      switch (toString$.call(item).slice(8, -1)) {
+      case 'Object':
+        b = Object.getOwnPropertyNames(item);
+        if (key) {
+          for (i$ = 0, len$ = b.length; i$ < len$; ++i$) {
+            a = b[i$];
+            add(list, item[a], key + '[' + a + ']');
+          }
+        } else {
+          for (i$ = 0, len$ = b.length; i$ < len$; ++i$) {
+            a = b[i$];
+            add(list, item[a], a);
+          }
+        }
+        break;
+      case 'Array':
+        key = key ? key + '[]' : '';
+        b = item.length;
+        a = -1;
+        while (++a < b) {
+          add(list, item[a], key);
+        }
+        break;
+      case 'Null':
+        list[list.length] = encodeURIComponent(key) + '=';
+        break;
+      default:
+        list[list.length] = encodeURIComponent(key) + '=' + encodeURIComponent(item);
+      }
+      return list;
+    };
+    return function(o){
+      return add([], o, '').join('&');
+    };
+  }();
+  newPromise = function(aborter){
+    var a, b;
+    a = null;
+    b = new Promise(function(resolve){
+      a = resolve;
+    });
+    b.pending = true;
+    b.resolve = a;
+    b.controller = aborter;
+    b.abort = b.cancel = function(){
+      aborter.abort();
+    };
+    return b;
+  };
+  newInstance = function(baseConfig){
+    return function(userConfig){
+      var config, a, b;
+      config = new Config();
+      if (baseConfig) {
+        config.set(baseConfig);
+      }
+      if (userConfig) {
+        config.set(userConfig);
+      }
+      a = new FetchHandler(config);
+      b = new ApiHandler(a);
+      return new Proxy(a.fetch, b);
     };
   };
   return newInstance(null)(null);
