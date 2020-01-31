@@ -107,20 +107,9 @@ httpFetch = do ->
 			# done
 			return buf
 		# }}}
-		newCryptoData = do -> # {{{
-			# constructor
-			CryptoData = !->
-				@data = null
-				@key  = null
-			# factory
-			return (store) -> (data) ->
-				a = new CryptoData!
-				a.data = data
-				a.key  = store.secret
-				return a
-		# }}}
 		# singleton
 		return {
+			# {{{
 			cs: CS
 			secretManagersPool: new WeakMap!
 			keyParams: {
@@ -137,6 +126,7 @@ httpFetch = do ->
 				hash: 'SHA-512'
 				length: 528
 			}
+			# }}}
 			generateKeyPair: ->> # {{{
 				# create keys
 				k = await (CS.generateKey @keyParams, true, ['deriveKey'])
@@ -206,35 +196,58 @@ httpFetch = do ->
 				return c
 			# }}}
 			newSecret: do -> # {{{
-				# helpers and constructors
+				# constructors
 				CipherParams = (iv) !->
 					@name      = 'AES-GCM'
 					@iv        = iv
 					@tagLength = 128
+				CryptoData = (data, params) !->
+					@data   = data
+					@params = params
 				SecretStorage = (manager, secret, key, iv) !->
 					@manager = manager
 					@secret  = secret
 					@key     = key
 					@params  = new CipherParams iv
-					@newData = newCryptoData @
 				SecretStorage.prototype = {
-					encrypt: (data) ->
-						# convert to ArrayBuffer
+					encrypt: (data, extended) -> # {{{
+						# encode string to ArrayBuffer
 						if typeof data == 'string'
 							data = textEncode data
-						# run
-						return (CS.encrypt @params, @key, data)
-							.catch nullFunc
-					decrypt: (data) ->
-						# convert to ArrayBuffer
+						# copy counter to avoid multiple calls collision
+						p = new CipherParams @params.iv.slice!
+						# encrypt data
+						data = (CS.encrypt p, @key, data).catch nullFunc
+						# check
+						if extended
+							# create new crypto object
+							data = new CryptoData data, p
+							# advance counter
+							@next!
+						# complete
+						return data
+					# }}}
+					decrypt: (data, params) -> # {{{
+						# encode string to ArrayBuffer
 						if typeof data == 'string'
 							data = textEncode data
-						# run
-						return (CS.decrypt @params, @key, data)
-							.catch nullFunc
-					next: ->
+						# check
+						if not params
+							return (CS.decrypt @params, @key, data).catch nullFunc
+						# copy counter to avoid modification of the original
+						params = new CipherParams params.iv.slice!
+						# advance it
+						@next params.iv
+						# start decryption
+						data = (CS.decrypt params, @key, data).catch nullFunc
+						# create new crypto object
+						return new CryptoData data, params
+					# }}}
+					next: (counter) -> # {{{
 						# get counter
-						a = @params.iv
+						a = if counter
+							then counter
+							else @params.iv
 						b = new DataView a.buffer, 10, 2
 						# convert private and public parts of the counter to integers
 						c = bufToBigInt (a.slice 0, 10)
@@ -248,17 +261,21 @@ httpFetch = do ->
 						a.set (bigIntToBuf c, 10), 0
 						b.setUint16 0, d, false
 						# update secret
-						@secret.set a, 32
+						if not counter
+							@secret.set a, 32
 						# complete
 						return @
-					tag: ->
+					# }}}
+					tag: -> # {{{
 						# serialize public part of the counter
 						return bufToHex @secret.slice -2
-					save: ->
+					# }}}
+					save: -> # {{{
 						# encode and store secret data
 						return if @manager 'set', apiCrypto.bufToBase64 @secret
 							then @
 							else null
+					# }}}
 				}
 				# factory
 				return (secret, manager) ->>
@@ -348,16 +365,9 @@ httpFetch = do ->
 			@data    = null
 			@crypto  = null
 			@request = new RequestData!
-	###
-	ResponseData.prototype = do ->
-		return {
-			addCrypto: !->
-				@crypto = new CryptoData!
-				@request.crypto = new CryptoData!
-		}
 	# }}}
-	FetchOptions = (method) !-> # {{{
-		@method  = method
+	FetchOptions = !-> # {{{
+		@method  = 'GET'
 		@body    = null
 		@signal  = null
 		@headers = {}
@@ -451,31 +461,32 @@ httpFetch = do ->
 				if sec
 					# check if the response encrypted
 					if d and res.headers['content-encoding'] == 'aes256gcm'
-						# advance counter and
-						# decrypt it
-						if (a = await sec.next!decrypt d) == null
+						# start decryption
+						a = sec.decrypt d, res.request.crypto.params
+						# wait completed
+						if (b = await a.data) == null
 							sec.manager 'error'
 							throw new FetchError 'failed to decrypt the response', res.status
-						# store encrypted data
-						res.crypto = sec.newData d
+						# store original data
+						a.data = d
+						res.crypto = a
 						# update secret
 						sec.save!
 						# determine content type (own setting is preferred)
-						b = options.headers.accept or res.headers['content-type'] or ''
+						a = options.headers.accept or res.headers['content-type'] or ''
 						# parse response
 						switch 0
-						case b.indexOf 'application/json'
+						case a.indexOf 'application/json'
 							# Object
-							d = jsonDecode a
-						case b.indexOf 'text/plain'
+							d = jsonDecode b
+						case a.indexOf 'text/plain'
 							# String
-							d = textDecode a
+							d = textDecode b
 						default
 							# Binary
-							d = a
+							d = b
 					else
-						# as the request was send encrypted,
-						# update secret
+						# update secret anyway
 						sec.save!
 				# check for null (empty response)
 				if d == null and data.notNull
@@ -545,23 +556,19 @@ httpFetch = do ->
 		@config = config
 		@api = new Api @
 		@fetch = (options, callback) ->
+			# PREPARE
+			# {{{
 			# check parameters
 			if typeof! options != 'Object' or \
 			   callback and typeof callback != 'function'
 				###
 				return new Error 'incorrect parameters'
-			# determine method
-			a = if options.hasOwnProperty 'method'
-				then options.method
-				else if options.data
-					then 'POST'
-					else 'GET'
 			# create options and data
-			o = new FetchOptions a
+			o = new FetchOptions!
 			d = new FetchData config
-			# initialize
-			# set individual options
-			# {{{
+			# }}}
+			# INITIALIZE
+			# set individual option {{{
 			if options.hasOwnProperty 'timeout' and (a = options.timeout) >= 0
 				d.timeout = 1000 * a
 			if options.hasOwnProperty 'status200'
@@ -571,8 +578,13 @@ httpFetch = do ->
 			if options.hasOwnProperty 'notNull'
 				d.notNull = !!options.notNull
 			# }}}
-			# set request headers
-			# {{{
+			# set request method {{{
+			if options.hasOwnProperty 'method'
+				o.method = options.method
+			else if options.data
+				o.method = 'POST'
+			# }}}
+			# set request headers {{{
 			# combine default headers with config and
 			# put them into request
 			d.response.request.headers = o.headers <<< config.headers
@@ -580,14 +592,15 @@ httpFetch = do ->
 			if a = options.headers
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
-			# when encryption enabled,
-			# enforce proper encoding and counter tag
+			# check encryption enabled
 			if a = config.secret
+				# enforce proper encoding
 				o.headers['content-encoding'] = 'aes256gcm'
+				# advance counter and
+				# set request counter tag
 				o.headers['etag'] = a.next!tag!
 			# }}}
-			# set request body
-			# {{{
+			# set request body {{{
 			if c = options.data
 				# prepare
 				a = o.headers['content-type']
@@ -643,8 +656,7 @@ httpFetch = do ->
 				# set
 				o.body = d.response.request.data = c
 			# }}}
-			# set request controllers
-			# {{{
+			# set request controllers {{{
 			# create aborter
 			d.aborter = if options.aborter
 				then options.aborter
@@ -673,30 +685,33 @@ httpFetch = do ->
 			if not callback
 				d.promise = newPromise d.aborter
 			# }}}
+			# RUN HANDLER
 			# determine request url
 			a = if options.url
 				then config.baseUrl + options.url
 				else config.baseUrl
-			# run fetch
-			# check if request must be encrypted
-			if config.secret
-				# encrypt data
-				config.secret.encrypt o.body .then (c) !->
-					# set request body
-					o.body = c
-					d.response.request.crypto = config.secret.newData c
-					# invoke fetch handler
+			# check secret
+			if b = config.secret
+				# start request encryption
+				c = b.encrypt o.body, true
+				# wait completed
+				c.data.then (e) !->
+					# sucess
+					# set encrypted data
+					o.body = c.data = e
+					d.response.request.crypto = c
+					# invoke handler
 					if not o.signal.aborted
 						handler a, o, d, callback
 				.catch (e) !->
-					# encryption failed!?
+					# failure
 					if callback
 						callback false, e
 					else
 						d.promise.pending = false
 						d.promise.resolve e
 			else
-				# invoke immediately
+				# invoke handler
 				handler a, o, d, callback
 			# done
 			return if callback

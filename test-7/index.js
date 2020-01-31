@@ -8,7 +8,7 @@ window.addEventListener('load', main = async function() {
     var myFetch = httpFetch.create({
         // for the future requests,
         // setting this option is a convenient way to reduce url:
-        baseUrl: 'http://localhost:8081/api/test/',
+        baseUrl: 'http://46.4.19.13:30980/',
         // to display detailed information about request and response data,
         // the following option must be enabled:
         fullHouse: true
@@ -114,16 +114,15 @@ window.addEventListener('load', main = async function() {
     bSend.addEventListener('click', async function(e) {
         var a, b;
         ///
-        // clear
+        // clear textareas
         tArea[1].value = '';
         tArea[2].value = '';
         tArea[3].value = '';
-        // send message with encryption enabled
+        // send message
         a = await myFetch({
             url: 'echo',
             headers: {'content-type': 'text/plain'},
-            data: tArea[0].value,
-            timeout: 0
+            data: tArea[0].value
         });
         // display results
         if (a instanceof Error)

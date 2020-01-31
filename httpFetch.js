@@ -43,7 +43,7 @@ httpFetch = function(){
     };
   }();
   apiCrypto = function(){
-    var CS, nullFunc, bufToHex, hexToBuf, bufToBigInt, bigIntToBuf, newCryptoData;
+    var CS, nullFunc, bufToHex, hexToBuf, bufToBigInt, bigIntToBuf;
     if (typeof crypto === 'undefined' || !crypto.subtle) {
       console.log('httpFetch: Web Crypto API is not available');
       return null;
@@ -106,22 +106,6 @@ httpFetch = function(){
       }
       return buf;
     };
-    newCryptoData = function(){
-      var CryptoData;
-      CryptoData = function(){
-        this.data = null;
-        this.key = null;
-      };
-      return function(store){
-        return function(data){
-          var a;
-          a = new CryptoData();
-          a.data = data;
-          a.key = store.secret;
-          return a;
-        };
-      };
-    }();
     return {
       cs: CS,
       secretManagersPool: new WeakMap(),
@@ -200,35 +184,53 @@ httpFetch = function(){
         return c;
       },
       newSecret: function(){
-        var CipherParams, SecretStorage;
+        var CipherParams, CryptoData, SecretStorage;
         CipherParams = function(iv){
           this.name = 'AES-GCM';
           this.iv = iv;
           this.tagLength = 128;
+        };
+        CryptoData = function(data, params){
+          this.data = data;
+          this.params = params;
         };
         SecretStorage = function(manager, secret, key, iv){
           this.manager = manager;
           this.secret = secret;
           this.key = key;
           this.params = new CipherParams(iv);
-          this.newData = newCryptoData(this);
         };
         SecretStorage.prototype = {
-          encrypt: function(data){
+          encrypt: function(data, extended){
+            var p;
             if (typeof data === 'string') {
               data = textEncode(data);
             }
-            return CS.encrypt(this.params, this.key, data)['catch'](nullFunc);
+            p = new CipherParams(this.params.iv.slice());
+            data = CS.encrypt(p, this.key, data)['catch'](nullFunc);
+            if (extended) {
+              data = new CryptoData(data, p);
+              this.next();
+            }
+            return data;
           },
-          decrypt: function(data){
+          decrypt: function(data, params){
             if (typeof data === 'string') {
               data = textEncode(data);
             }
-            return CS.decrypt(this.params, this.key, data)['catch'](nullFunc);
+            if (!params) {
+              return CS.decrypt(this.params, this.key, data)['catch'](nullFunc);
+            }
+            params = new CipherParams(params.iv.slice());
+            this.next(params.iv);
+            data = CS.decrypt(params, this.key, data)['catch'](nullFunc);
+            return new CryptoData(data, params);
           },
-          next: function(){
+          next: function(counter){
             var a, b, c, d, e;
-            a = this.params.iv;
+            a = counter
+              ? counter
+              : this.params.iv;
             b = new DataView(a.buffer, 10, 2);
             c = bufToBigInt(a.slice(0, 10));
             d = b.getUint16(0, false);
@@ -240,7 +242,9 @@ httpFetch = function(){
             }
             a.set(bigIntToBuf(c, 10), 0);
             b.setUint16(0, d, false);
-            this.secret.set(a, 32);
+            if (!counter) {
+              this.secret.set(a, 32);
+            }
             return this;
           },
           tag: function(){
@@ -336,16 +340,8 @@ httpFetch = function(){
       this.request = new RequestData();
     };
   }();
-  ResponseData.prototype = function(){
-    return {
-      addCrypto: function(){
-        this.crypto = new CryptoData();
-        this.request.crypto = new CryptoData();
-      }
-    };
-  }();
-  FetchOptions = function(method){
-    this.method = method;
+  FetchOptions = function(){
+    this.method = 'GET';
     this.body = null;
     this.signal = null;
     this.headers = {};
@@ -429,22 +425,24 @@ httpFetch = function(){
         sec = config.secret;
         if (sec) {
           if (d && res.headers['content-encoding'] === 'aes256gcm') {
-            if ((a = (await sec.next().decrypt(d))) === null) {
+            a = sec.decrypt(d, res.request.crypto.params);
+            if ((b = (await a.data)) === null) {
               sec.manager('error');
               throw new FetchError('failed to decrypt the response', res.status);
             }
-            res.crypto = sec.newData(d);
+            a.data = d;
+            res.crypto = a;
             sec.save();
-            b = options.headers.accept || res.headers['content-type'] || '';
+            a = options.headers.accept || res.headers['content-type'] || '';
             switch (0) {
-            case b.indexOf('application/json'):
-              d = jsonDecode(a);
+            case a.indexOf('application/json'):
+              d = jsonDecode(b);
               break;
-            case b.indexOf('text/plain'):
-              d = textDecode(a);
+            case a.indexOf('text/plain'):
+              d = textDecode(b);
               break;
             default:
-              d = a;
+              d = b;
             }
           } else {
             sec.save();
@@ -513,14 +511,11 @@ httpFetch = function(){
     this.config = config;
     this.api = new Api(this);
     this.fetch = function(options, callback){
-      var a, o, d, b, c;
+      var o, d, a, b, c;
       if (toString$.call(options).slice(8, -1) !== 'Object' || callback && typeof callback !== 'function') {
         return new Error('incorrect parameters');
       }
-      a = options.hasOwnProperty('method')
-        ? options.method
-        : options.data ? 'POST' : 'GET';
-      o = new FetchOptions(a);
+      o = new FetchOptions();
       d = new FetchData(config);
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
@@ -533,6 +528,11 @@ httpFetch = function(){
       }
       if (options.hasOwnProperty('notNull')) {
         d.notNull = !!options.notNull;
+      }
+      if (options.hasOwnProperty('method')) {
+        o.method = options.method;
+      } else if (options.data) {
+        o.method = 'POST';
       }
       d.response.request.headers = import$(o.headers, config.headers);
       if (a = options.headers) {
@@ -625,10 +625,11 @@ httpFetch = function(){
       a = options.url
         ? config.baseUrl + options.url
         : config.baseUrl;
-      if (config.secret) {
-        config.secret.encrypt(o.body).then(function(c){
-          o.body = c;
-          d.response.request.crypto = config.secret.newData(c);
+      if (b = config.secret) {
+        c = b.encrypt(o.body, true);
+        c.data.then(function(e){
+          o.body = c.data = e;
+          d.response.request.crypto = c;
           if (!o.signal.aborted) {
             handler(a, o, d, callback);
           }

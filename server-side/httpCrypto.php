@@ -300,6 +300,7 @@ class HttpCrypto {
         #   which may break further key usage if
         #   the failure collide with counter overflow.
         # determine distances
+        xdebug_break();
         $c = 65536 + $c - $b;
         $d = abs($d);
         # check the case optimistically
@@ -404,7 +405,6 @@ class HttpCrypto {
       # update secret
       $this->keySecret = substr($this->keySecret, 0, 32).$a.$b;
       # encrypt data
-      xdebug_break();
       if (($result = $this->encrypt($data)) === null)
       {
         # set empty result

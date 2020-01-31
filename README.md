@@ -70,63 +70,85 @@ new [`httpFetch`](https://github.com/determin1st/httpFetch) instance
 
 ## Examples
 
-
-#### Get with callback
+#### Get data using callback
 ```javascript
 httpFetch.get('/api/drivers/list', function(ok, res) {
-  if (ok)
+  if (ok && res)
   {
-    // everything is okay..
+    // success
+  }
+  else if (!res)
+  {
+    // empty response
   }
   else
   {
-    // Error occured..
+    // error
   }
 });
 ```
-#### Get with async/await
+#### Get data using async/await
 ```javascript
-var res = await httpFetch.get('/api/drivers/list');
+res = await httpFetch.get('/api/drivers/list');
 if (res instanceof Error)
 {
-  // Error occured..
+  // error
+}
+else if (!res)
+{
+  // empty response
 }
 else
 {
-  // everything is okay..
+  // success
 }
 ```
-#### Get with Promise
+#### Get data using Promise
 ```javascript
 httpFetch.get('/api/drivers/list')
   .then(function(res) {
     if (res instanceof Error)
     {
-      // Error occured, note, that .catch() is not needed!
+      // error
+    }
+    else if (!res)
+    {
+      // empty response
     }
     else
     {
-      // everything is okay..
+      // success
     }
   });
 ```
-#### Configuring instance
+#### Create custom instance
 ```javascript
-// set previously obtained authorization token to the main instance configuration
-httpFetch.headers.Authorization = 'token '+access_token;
-// all fetches, from now on, will carry this header if not replaced explicitly.
-// ...
-```
-```javascript
-// this is a safer variant which creates a new instance with derived configuration
-var myFetch = httpFetch.create({
+soFetch = httpFetch.create({
+  ///
+  // setting connection timeout to zero will make it wait forever,
+  // until server responses
+  //
+  timeout: 0,
+  ///
+  // custom request headers
+  //
   headers: {
-    Authorization: 'token '+access_token
+    // when response arrives, fetch handler will try to parse it
+    // according to accepted content type setting:
+    accept: 'application/json'
+    // remote API may require specific authorization headers set,
+    // exact names and formats depend on implementation:
+    authorization: 'token '+accessToken
   }
 });
-```
 
-#### File uploads
+// ...
+
+res = await soFetch.get('/api/resource');
+
+// ...
+```
+#### File upload
 #### Cancellation
 #### Retry
 
