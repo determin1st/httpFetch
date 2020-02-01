@@ -367,11 +367,14 @@ httpFetch = do ->
 			@request = new RequestData!
 	# }}}
 	FetchOptions = !-> # {{{
-		@method  = 'GET'
-		@body    = null
-		@signal  = null
-		@headers = {}
-		@mode    = 'cors'
+		@method      = 'GET'
+		@headers     = {}
+		@body        = null
+		@mode        = 'cors'
+		@credentials = 'include'
+		@cache       = 'default'
+		@redirect    = 'follow'
+		@signal      = null
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
@@ -799,7 +802,6 @@ httpFetch = do ->
 					fullHouse: false
 					timeout: 0
 				}
-				#debugger
 				a = await handler.fetch b
 				# check the response
 				if not a or (a instanceof Error)

@@ -342,10 +342,13 @@ httpFetch = function(){
   }();
   FetchOptions = function(){
     this.method = 'GET';
-    this.body = null;
-    this.signal = null;
     this.headers = {};
+    this.body = null;
     this.mode = 'cors';
+    this.credentials = 'include';
+    this.cache = 'default';
+    this.redirect = 'follow';
+    this.signal = null;
   };
   FetchError = function(){
     var E;
