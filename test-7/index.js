@@ -8,7 +8,7 @@ window.addEventListener('load', main = async function() {
     var myFetch = httpFetch.create({
         // for the future requests,
         // setting this option is a convenient way to reduce url:
-        baseUrl: 'http://46.4.19.13:30980/',
+        baseUrl: 'http://46.4.19.13:30980/api/test/',
         // to display detailed information about request and response data,
         // the following option must be enabled:
         fullHouse: true

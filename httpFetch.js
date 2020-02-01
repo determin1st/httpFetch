@@ -688,7 +688,7 @@ httpFetch = function(){
         return true;
       }
       if (apiCrypto.secretManagersPool.has(storeManager)) {
-        console.log('httpFetch: secret store manager must be unique');
+        console.log('httpFetch: secret manager must be unique');
         return false;
       }
       handshakeLocked = true;

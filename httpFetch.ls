@@ -762,7 +762,7 @@ httpFetch = do ->
 				return true
 			# check unique
 			if apiCrypto.secretManagersPool.has storeManager
-				console.log 'httpFetch: secret store manager must be unique'
+				console.log 'httpFetch: secret manager must be unique'
 				return false
 			# lock
 			handshakeLocked := true
@@ -799,6 +799,7 @@ httpFetch = do ->
 					fullHouse: false
 					timeout: 0
 				}
+				#debugger
 				a = await handler.fetch b
 				# check the response
 				if not a or (a instanceof Error)
