@@ -441,7 +441,7 @@ httpFetch = function(){
             case a.indexOf('application/json'):
               d = jsonDecode(b);
               break;
-            case a.indexOf('text/plain'):
+            case a.indexOf('text'):
               d = textDecode(b);
               break;
             default:

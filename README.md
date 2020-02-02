@@ -25,7 +25,9 @@
 
 #### Return value
 
-[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback) or [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) on success, [`null`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null) on failure.
+[`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback) or
+[`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) (failure)
 
 
 ## Short syntax
@@ -42,8 +44,9 @@
 
 #### Return value
 
-[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback) or [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) on success, [`null`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null) on failure.
-
+[`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback) or
+[`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) (failure)
 
 
 ## Instance Configuration
@@ -151,6 +154,7 @@ res = await soFetch.get('/api/resource');
 #### File upload
 #### Cancellation
 #### Retry
+#### Encryption
 
 
 ## Demos
@@ -169,6 +173,7 @@ res = await soFetch.get('/api/resource');
 
 [Image upload](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
 
+[Encryption](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): handshake and echo encrypted message
 
 ## Install
 

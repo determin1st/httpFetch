@@ -482,7 +482,7 @@ httpFetch = do ->
 						case a.indexOf 'application/json'
 							# Object
 							d = jsonDecode b
-						case a.indexOf 'text/plain'
+						case a.indexOf 'text'
 							# String
 							d = textDecode b
 						default

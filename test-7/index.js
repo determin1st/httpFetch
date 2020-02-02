@@ -75,6 +75,13 @@ window.addEventListener('load', main = async function() {
     // set events
     bHandshake.addEventListener('click', async function(e) {
         ///
+        // check
+        if (!myFetch.handshake)
+        {
+            tSecret.value = 'Web Crypto API is not available (crypto.subtle is undefined)';
+            return;
+        }
+        ///
         // try to establish shared secret.
         // repeated handshakes will fail until first is resolved, so
         // it is safe (but useless) to invoke this function multiple times.
@@ -177,6 +184,22 @@ window.addEventListener('load', main = async function() {
           return b.join('');
         };
       }()
+    };
+    // some auto-tester
+    window.test = function(count) {
+        var cycle = function() {
+            setTimeout(function() {
+                if (--count)
+                {
+                    bSend.click();
+                    cycle();
+                }
+                else {
+                    console.log('finished');
+                }
+            }, 100);
+        };
+        cycle();
     };
     ////
     // get source code
