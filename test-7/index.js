@@ -169,7 +169,7 @@ window.addEventListener('load', main = async function() {
         hex = [];
         i = -1;
         n = 255;
-        while (++i < n) {
+        while (++i <= n) {
           hex[i] = i.toString(16).padStart(2, '0');
         }
         return function(buf){
