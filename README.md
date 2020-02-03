@@ -12,8 +12,6 @@ wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs
   - **`url`** - request destination [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
 , reference to the web resource (prefixed by **`baseUrl`**)
   - **`data`**(*optional*) - to be sent as the request body
-  - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
-with request headers
   - **`method`**(*optional*) - request method [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
   - **`mode`**(*optional*) - fetch mode [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
   - **`credentials`**(*optional*) - ...
@@ -27,6 +25,8 @@ with request headers
 time (in seconds) to wait for server response
   - **`retry`**(*optional*)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
+  - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+with request headers
 , may be used for multiple requests cancellation
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
