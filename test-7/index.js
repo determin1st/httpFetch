@@ -11,7 +11,9 @@ window.addEventListener('load', main = async function() {
         baseUrl: 'http://46.4.19.13:30980/api/test/',
         // to display detailed information about request and response data,
         // the following option must be enabled:
-        fullHouse: true
+        fullHouse: true,
+        // session cookie will be used
+        credentials: 'include'
     });
     // to handle secret key storage operations,
     // a special callback function must be created:

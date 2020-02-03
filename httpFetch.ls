@@ -315,66 +315,70 @@ httpFetch = do ->
 		}
 	# }}}
 	# constructors
-	Config = !-> # {{{
-		@baseUrl   = ''
-		@status200 = true
-		@fullHouse = false
-		@notNull   = false
-		@timeout   = 20
-		@retry     = null
-		@secret    = null
-		@headers   = {
-			'content-type': 'application/json; charset=utf-8'
+	FetchConfig = !-> # {{{
+		@baseUrl        = ''
+		@status200      = true
+		@fullHouse      = false
+		@notNull        = false
+		@timeout        = 20
+		@retry          = null
+		@secret         = null
+		@mode           = null
+		@credentials    = null
+		@cache          = null
+		@redirect       = null
+		@referrer       = null
+		@referrerPolicy = null
+		@integrity      = null
+		@keepalive      = null
+		@headers = {
+			'content-type': 'application/json;charset=utf-8' # http-fetch-json
 		}
-	Config.prototype = {
-		set: do ->
-			baseOptions = [
-				'baseUrl'
-				'status200'
-				'fullHouse'
-				'notNull'
-				'timeout'
-			]
-			return (o) !->
-				# set primitives
-				for a in baseOptions when o.hasOwnProperty a
-					@[a] = o[a]
-				# set headers
-				if o.headers
-					@headers = {}
-					for a,b of o.headers
-						@headers[a.toLowerCase!] = b
-				# done
+	###
+	FetchConfig.prototype = {
+		fetchOptions: [
+			'mode'
+			'credentials'
+			'cache'
+			'redirect'
+			'referrer'
+			'referrerPolicy'
+			'integrity'
+			'keepalive'
+		]
+		dataOptions: [
+			'baseUrl'
+			'status200'
+			'fullHouse'
+			'notNull'
+			'timeout'
+		]
+		setOptions: (o) !->
+			# set primitives
+			for a in @fetchOptions when o.hasOwnProperty a
+				@[a] = o[a]
+			for a in @dataOptions when o.hasOwnProperty a
+				@[a] = o[a]
+			# set headers
+			if o.headers
+				@headers = {}
+				for a,b of o.headers
+					@headers[a.toLowerCase!] = b
 	}
 	# }}}
-	RetryConfig = !-> # {{{
-		@count        = 15
-		@current      = 0
-		@expoBackoff  = true
-		@maxBackoff   = 32
-		@delay        = 1
-	# }}}
-	ResponseData = do -> # {{{
-		RequestData = !->
-			@headers = null
-			@data    = null
-			@crypto  = null
-		return ResponseData = !->
-			@status  = 0
-			@headers = null
-			@data    = null
-			@crypto  = null
-			@request = new RequestData!
-	# }}}
 	FetchOptions = !-> # {{{
-		@method      = 'GET'
-		@headers     = {}
-		@body        = null
-		@mode        = 'cors'
-		@credentials = 'include'
-		@cache       = 'default'
-		@redirect    = 'follow'
-		@signal      = null
+		@method         = 'GET'
+		@headers        = {}
+		@body           = null
+		@mode           = 'cors'
+		@credentials    = 'same-origin'
+		@cache          = 'default'
+		@redirect       = 'follow'
+		@referrer       = ''
+		@referrerPolicy = ''
+		@integrity      = ''
+		@keepalive      = false
+		@signal         = null
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
@@ -393,23 +397,42 @@ httpFetch = do ->
 		E.prototype = Error.prototype
 		return E
 	# }}}
-	FetchData = (config) !-> # {{{
-		# result control
-		@promise   = null
-		@response  = new ResponseData!
-		# cancellation control
-		@aborter   = null
-		@timer     = 0
-		@timerFunc = !~>
-			@timer = 0
-			@aborter.abort!
-		# connection control
-		@retry     = new RetryConfig!
-		# individual request configuration
-		@status200 = config.status200
-		@fullHouse = config.fullHouse
-		@notNull   = config.notNull
-		@timeout   = 1000 * config.timeout
+	FetchData = do -> # {{{
+		ResponseData = do ->
+			RequestData = !->
+				@headers = null
+				@data    = null
+				@crypto  = null
+			return ResponseData = !->
+				@status  = 0
+				@headers = null
+				@data    = null
+				@crypto  = null
+				@request = new RequestData!
+		RetryData = !->
+			@count        = 15
+			@current      = 0
+			@expoBackoff  = true
+			@maxBackoff   = 32
+			@delay        = 1
+		###
+		return FetchData = (config) !->
+			# result control
+			@promise   = null
+			@response  = new ResponseData!
+			# cancellation control
+			@aborter   = null
+			@timer     = 0
+			@timerFunc = !~>
+				@timer = 0
+				@aborter.abort!
+			# connection control
+			@retry     = new RetryData!
+			# individual request configuration
+			@status200 = config.status200
+			@fullHouse = config.fullHouse
+			@notNull   = config.notNull
+			@timeout   = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
 		handler = (url, options, data, callback) -> # {{{
@@ -491,9 +514,9 @@ httpFetch = do ->
 					else
 						# update secret anyway
 						sec.save!
-				# check for null (empty response)
+				# check for empty response
 				if d == null and data.notNull
-					d = {}
+					throw new FetchError 'Empty response', r.status
 				# prepare result
 				if data.fullHouse
 					res.data = d
@@ -571,7 +594,8 @@ httpFetch = do ->
 			d = new FetchData config
 			# }}}
 			# INITIALIZE
-			# set individual option {{{
+			# individual options {{{
+			###
 			if options.hasOwnProperty 'timeout' and (a = options.timeout) >= 0
 				d.timeout = 1000 * a
 			if options.hasOwnProperty 'status200'
@@ -580,14 +604,21 @@ httpFetch = do ->
 				d.fullHouse = !!options.fullHouse
 			if options.hasOwnProperty 'notNull'
 				d.notNull = !!options.notNull
+			###
+			# set native fetch options
+			for a in config.fetchOptions
+				if options.hasOwnProperty a
+					o[a] = options[a]
+				else if config[a] != null
+					o[a] = config[a]
 			# }}}
-			# set request method {{{
+			# request method {{{
 			if options.hasOwnProperty 'method'
 				o.method = options.method
 			else if options.data
 				o.method = 'POST'
 			# }}}
-			# set request headers {{{
+			# request headers {{{
 			# combine default headers with config and
 			# put them into request
 			d.response.request.headers = o.headers <<< config.headers
@@ -603,7 +634,7 @@ httpFetch = do ->
 				# set request counter tag
 				o.headers['etag'] = a.next!tag!
 			# }}}
-			# set request body {{{
+			# request body {{{
 			if c = options.data
 				# prepare
 				a = o.headers['content-type']
@@ -659,15 +690,14 @@ httpFetch = do ->
 				# set
 				o.body = d.response.request.data = c
 			# }}}
-			# set request controllers {{{
-			# create aborter
+			# request controllers {{{
+			# set aborter
 			d.aborter = if options.aborter
 				then options.aborter
 				else new AbortController!
 			# set abort signal
 			o.signal = d.aborter.signal
-			# TODO: set retry
-			# {{{
+			/*** TODO: set retry
 			# copy configuration
 			a = d.retry
 			if b = config.retry
@@ -683,8 +713,8 @@ httpFetch = do ->
 			# fix values
 			a.current = 0
 			a.maxBackoff = 1000 * a.maxBackoff
-			# }}}
-			# create custom promise
+			/***/
+			# set promise
 			if not callback
 				d.promise = newPromise d.aborter
 			# }}}
@@ -979,10 +1009,10 @@ httpFetch = do ->
 	# }}}
 	newInstance = (baseConfig) -> (userConfig) -> # {{{
 		# create new configuration
-		config = new Config!
+		config = new FetchConfig!
 		# initialize it
-		config.set baseConfig if baseConfig
-		config.set userConfig if userConfig
+		config.setOptions baseConfig if baseConfig
+		config.setOptions userConfig if userConfig
 		# create handlers
 		a = new FetchHandler config
 		b = new ApiHandler a

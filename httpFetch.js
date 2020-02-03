@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, Config, RetryConfig, ResponseData, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
   api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
@@ -284,7 +284,7 @@ httpFetch = function(){
       }()
     };
   }();
-  Config = function(){
+  FetchConfig = function(){
     this.baseUrl = '';
     this.status200 = true;
     this.fullHouse = false;
@@ -292,62 +292,56 @@ httpFetch = function(){
     this.timeout = 20;
     this.retry = null;
     this.secret = null;
+    this.mode = null;
+    this.credentials = null;
+    this.cache = null;
+    this.redirect = null;
+    this.referrer = null;
+    this.referrerPolicy = null;
+    this.integrity = null;
+    this.keepalive = null;
     this.headers = {
-      'content-type': 'application/json; charset=utf-8'
+      'content-type': 'application/json;charset=utf-8'
     };
   };
-  Config.prototype = {
-    set: function(){
-      var baseOptions;
-      baseOptions = ['baseUrl', 'status200', 'fullHouse', 'notNull', 'timeout'];
-      return function(o){
-        var i$, ref$, len$, a, b;
-        for (i$ = 0, len$ = (ref$ = baseOptions).length; i$ < len$; ++i$) {
-          a = ref$[i$];
-          if (o.hasOwnProperty(a)) {
-            this[a] = o[a];
-          }
+  FetchConfig.prototype = {
+    fetchOptions: ['mode', 'credentials', 'cache', 'redirect', 'referrer', 'referrerPolicy', 'integrity', 'keepalive'],
+    dataOptions: ['baseUrl', 'status200', 'fullHouse', 'notNull', 'timeout'],
+    setOptions: function(o){
+      var i$, ref$, len$, a, b;
+      for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
+        a = ref$[i$];
+        if (o.hasOwnProperty(a)) {
+          this[a] = o[a];
         }
-        if (o.headers) {
-          this.headers = {};
-          for (a in ref$ = o.headers) {
-            b = ref$[a];
-            this.headers[a.toLowerCase()] = b;
-          }
+      }
+      for (i$ = 0, len$ = (ref$ = this.dataOptions).length; i$ < len$; ++i$) {
+        a = ref$[i$];
+        if (o.hasOwnProperty(a)) {
+          this[a] = o[a];
         }
-      };
-    }()
+      }
+      if (o.headers) {
+        this.headers = {};
+        for (a in ref$ = o.headers) {
+          b = ref$[a];
+          this.headers[a.toLowerCase()] = b;
+        }
+      }
+    }
   };
-  RetryConfig = function(){
-    this.count = 15;
-    this.current = 0;
-    this.expoBackoff = true;
-    this.maxBackoff = 32;
-    this.delay = 1;
-  };
-  ResponseData = function(){
-    var RequestData, ResponseData;
-    RequestData = function(){
-      this.headers = null;
-      this.data = null;
-      this.crypto = null;
-    };
-    return ResponseData = function(){
-      this.status = 0;
-      this.headers = null;
-      this.data = null;
-      this.crypto = null;
-      this.request = new RequestData();
-    };
-  }();
   FetchOptions = function(){
     this.method = 'GET';
     this.headers = {};
     this.body = null;
     this.mode = 'cors';
-    this.credentials = 'include';
+    this.credentials = 'same-origin';
     this.cache = 'default';
     this.redirect = 'follow';
+    this.referrer = '';
+    this.referrerPolicy = '';
+    this.integrity = '';
+    this.keepalive = false;
     this.signal = null;
   };
   FetchError = function(){
@@ -370,22 +364,47 @@ httpFetch = function(){
     E.prototype = Error.prototype;
     return E;
   }();
-  FetchData = function(config){
-    var this$ = this;
-    this.promise = null;
-    this.response = new ResponseData();
-    this.aborter = null;
-    this.timer = 0;
-    this.timerFunc = function(){
-      this$.timer = 0;
-      this$.aborter.abort();
+  FetchData = function(){
+    var ResponseData, RetryData, FetchData;
+    ResponseData = function(){
+      var RequestData, ResponseData;
+      RequestData = function(){
+        this.headers = null;
+        this.data = null;
+        this.crypto = null;
+      };
+      return ResponseData = function(){
+        this.status = 0;
+        this.headers = null;
+        this.data = null;
+        this.crypto = null;
+        this.request = new RequestData();
+      };
+    }();
+    RetryData = function(){
+      this.count = 15;
+      this.current = 0;
+      this.expoBackoff = true;
+      this.maxBackoff = 32;
+      this.delay = 1;
     };
-    this.retry = new RetryConfig();
-    this.status200 = config.status200;
-    this.fullHouse = config.fullHouse;
-    this.notNull = config.notNull;
-    this.timeout = 1000 * config.timeout;
-  };
+    return FetchData = function(config){
+      var this$ = this;
+      this.promise = null;
+      this.response = new ResponseData();
+      this.aborter = null;
+      this.timer = 0;
+      this.timerFunc = function(){
+        this$.timer = 0;
+        this$.aborter.abort();
+      };
+      this.retry = new RetryData();
+      this.status200 = config.status200;
+      this.fullHouse = config.fullHouse;
+      this.notNull = config.notNull;
+      this.timeout = 1000 * config.timeout;
+    };
+  }();
   FetchHandler = function(config){
     var handler;
     handler = function(url, options, data, callback){
@@ -452,7 +471,7 @@ httpFetch = function(){
           }
         }
         if (d === null && data.notNull) {
-          d = {};
+          throw new FetchError('Empty response', r.status);
         }
         if (data.fullHouse) {
           res.data = d;
@@ -514,7 +533,7 @@ httpFetch = function(){
     this.config = config;
     this.api = new Api(this);
     this.fetch = function(options, callback){
-      var o, d, a, b, c;
+      var o, d, a, i$, ref$, len$, b, c;
       if (toString$.call(options).slice(8, -1) !== 'Object' || callback && typeof callback !== 'function') {
         return new Error('incorrect parameters');
       }
@@ -531,6 +550,14 @@ httpFetch = function(){
       }
       if (options.hasOwnProperty('notNull')) {
         d.notNull = !!options.notNull;
+      }
+      for (i$ = 0, len$ = (ref$ = config.fetchOptions).length; i$ < len$; ++i$) {
+        a = ref$[i$];
+        if (options.hasOwnProperty(a)) {
+          o[a] = options[a];
+        } else if (config[a] !== null) {
+          o[a] = config[a];
+        }
       }
       if (options.hasOwnProperty('method')) {
         o.method = options.method;
@@ -603,25 +630,23 @@ httpFetch = function(){
         ? options.aborter
         : new AbortController();
       o.signal = d.aborter.signal;
-      a = d.retry;
-      if (b = config.retry) {
-        for (c in a) {
-          a[c] = b[c];
-        }
-      }
-      if (b = options.retry) {
-        if (toString$.call(b).slice(8, -1) === 'Object') {
-          for (c in a) {
-            if (b.hasOwnProperty(c)) {
-              a[c] = b[c];
-            }
-          }
-        } else {
-          a.count = b;
-        }
-      }
-      a.current = 0;
-      a.maxBackoff = 1000 * a.maxBackoff;
+      /*** TODO: set retry
+      # copy configuration
+      a = d.retry
+      if b = config.retry
+      	for c of a
+      		a[c] = b[c]
+      # copy user options
+      if b = options.retry
+      	if typeof! b == 'Object'
+      		for c of a when b.hasOwnProperty c
+      			a[c] = b[c]
+      	else
+      		a.count = b
+      # fix values
+      a.current = 0
+      a.maxBackoff = 1000 * a.maxBackoff
+      /***/
       if (!callback) {
         d.promise = newPromise(d.aborter);
       }
@@ -912,12 +937,12 @@ httpFetch = function(){
   newInstance = function(baseConfig){
     return function(userConfig){
       var config, a, b;
-      config = new Config();
+      config = new FetchConfig();
       if (baseConfig) {
-        config.set(baseConfig);
+        config.setOptions(baseConfig);
       }
       if (userConfig) {
-        config.set(userConfig);
+        config.setOptions(userConfig);
       }
       a = new FetchHandler(config);
       b = new ApiHandler(a);
