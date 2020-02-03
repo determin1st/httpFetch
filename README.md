@@ -76,7 +76,7 @@ var soFetch = httpFetch.create({
   referrer: 'http://example.fake',// ''
   referrerPolicy: 'same-origin',  // ''
   integrity: knownSRI,            // ''
-  keepalive: false,               // true
+  keepalive: true,                // false
   ///
   // when your API works solid and optimal,
   // there is nothing special in http responses and
@@ -207,6 +207,28 @@ httpFetch.get('resource', function(ok, res) {
 });
 ```
 
+
+## Result types
+- [JSON](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON)
+  - `application/json`
+- [USVString](https://developer.mozilla.org/en-US/docs/Web/API/USVString)
+  - `text/*`
+- [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob)
+  - `image/*`
+  - `audio/*`
+  - `video/*`
+- [FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
+  - `multipart/form-data`
+- [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer)
+  - `application/octet-stream`
+  - `*`
+- [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)
+  - when response is empty and **`notNull`** is `false`
+- [Error](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
+  - when error occur
+  - when response is empty and **`notNull`** is `true`
+
+
 ## Shortcuts
 ### method
 #### `httpFetch.post(url, data[, callback(ok, res)])`
@@ -223,10 +245,12 @@ httpFetch.get('resource', function(ok, res) {
 - `application/octet-stream`
 
 
-## File upload
-## Cancellation
-## Retry
-## Encryption
+## Examples
+### Enforce result type
+### File upload
+### Cancellation
+### Retry
+### Encryption
 
 
 ## Demos

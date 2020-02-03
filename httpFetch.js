@@ -286,12 +286,6 @@ httpFetch = function(){
   }();
   FetchConfig = function(){
     this.baseUrl = '';
-    this.status200 = true;
-    this.fullHouse = false;
-    this.notNull = false;
-    this.timeout = 20;
-    this.retry = null;
-    this.secret = null;
     this.mode = null;
     this.credentials = null;
     this.cache = null;
@@ -300,6 +294,12 @@ httpFetch = function(){
     this.referrerPolicy = null;
     this.integrity = null;
     this.keepalive = null;
+    this.status200 = true;
+    this.fullHouse = false;
+    this.notNull = false;
+    this.timeout = 20;
+    this.retry = null;
+    this.secret = null;
     this.headers = {
       'content-type': 'application/json;charset=utf-8'
     };
@@ -341,7 +341,7 @@ httpFetch = function(){
     this.referrer = '';
     this.referrerPolicy = '';
     this.integrity = '';
-    this.keepalive = true;
+    this.keepalive = false;
     this.signal = null;
   };
   FetchError = function(){
@@ -437,8 +437,16 @@ httpFetch = function(){
           return r.text().then(jsonDecode);
         case a.indexOf('application/octet-stream'):
           return r.arrayBuffer();
-        default:
+        case a.indexOf('text/'):
           return r.text();
+        case a.indexOf('image/'):
+        case a.indexOf('audio/'):
+        case a.indexOf('video/'):
+          return r.blob();
+        case a.indexOf('multipart/form-data'):
+          return r.formData();
+        default:
+          return r.arrayBuffer();
         }
       };
       successHandler = async function(d){
@@ -460,7 +468,7 @@ httpFetch = function(){
             case a.indexOf('application/json'):
               d = jsonDecode(b);
               break;
-            case a.indexOf('text'):
+            case a.indexOf('text/'):
               d = textDecode(b);
               break;
             default:
@@ -470,8 +478,8 @@ httpFetch = function(){
             sec.save();
           }
         }
-        if (d === null && data.notNull) {
-          throw new FetchError('Empty response', r.status);
+        if (data.notNull && ((a = toString$.call(d).slice(8, -1)) === 'Null' || a === 'Blob' && a.size === 0 || a === 'ArrayBuffer' && a.byteLength === 0)) {
+          throw new FetchError('empty response', r.status);
         }
         if (data.fullHouse) {
           res.data = d;

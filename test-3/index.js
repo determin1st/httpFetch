@@ -34,15 +34,20 @@ window.addEventListener('load', main = async function() {
         }
         else
         {
-            console.log('#1: failed!');
+            console.log('#1: fail!');
         }
         /***/
-        // #2: incorrect response body
+        // #2: incorrect response
         // The server specifies content-type header as application/json
         // but returns text/html. This may happen when remote code
         // has problems with the output, for example,
         // PHP's [E_NOTICE]/[E_WARNING]/[E_ERROR] pollution..
-        res = await myFetch.get('fail/non-json-response');
+        res = await myFetch({
+            url: 'fail/non-json-response',
+            headers: {
+                accept: 'application/json'
+            }
+        });
         if (res instanceof Error)
         {
             console.log('#2: '+res.message);
@@ -50,7 +55,7 @@ window.addEventListener('load', main = async function() {
         }
         else
         {
-            console.log('#2: failed!');
+            console.log('#2: fail!');
         }
         /***/
         // #3: Random http statuses (except 200=OK)
@@ -66,7 +71,7 @@ window.addEventListener('load', main = async function() {
             }
             else
             {
-                console.log('#3-'+s+'xx: failed!');
+                console.log('#3-'+s+'xx: fail!');
             }
         }
         // unlock

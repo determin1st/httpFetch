@@ -317,12 +317,7 @@ httpFetch = do ->
 	# constructors
 	FetchConfig = !-> # {{{
 		@baseUrl        = ''
-		@status200      = true
-		@fullHouse      = false
-		@notNull        = false
-		@timeout        = 20
-		@retry          = null
-		@secret         = null
+		###
 		@mode           = null
 		@credentials    = null
 		@cache          = null
@@ -331,7 +326,14 @@ httpFetch = do ->
 		@referrerPolicy = null
 		@integrity      = null
 		@keepalive      = null
-		@headers = {
+		###
+		@status200      = true
+		@fullHouse      = false
+		@notNull        = false
+		@timeout        = 20
+		@retry          = null
+		@secret         = null
+		@headers        = {
 			'content-type': 'application/json;charset=utf-8' # http-fetch-json
 		}
 	###
@@ -377,7 +379,7 @@ httpFetch = do ->
 		@referrer       = ''
 		@referrerPolicy = ''
 		@integrity      = ''
-		@keepalive      = true
+		@keepalive      = false
 		@signal         = null
 	# }}}
 	FetchError = do -> # {{{
@@ -471,13 +473,24 @@ httpFetch = do ->
 				case a.indexOf 'application/json'
 					# not using .json(), because response with empty body
 					# will throw error at no-cors opaque mode (who needs that bullshit?)
-					return r.text!.then jsonDecode
+					return r.text!then jsonDecode
 				case a.indexOf 'application/octet-stream'
-					# binary data
+					# binary
 					return r.arrayBuffer!
-				default
+				case a.indexOf 'text/'
 					# plaintext
 					return r.text!
+				case (a.indexOf 'image/'), \
+				     (a.indexOf 'audio/'), \
+				     (a.indexOf 'video/')
+					# blob
+					return r.blob!
+				case a.indexOf 'multipart/form-data'
+					# FormData
+					return r.formData!
+				default
+					# assume binary
+					return r.arrayBuffer!
 			# }}}
 			successHandler = (d) !->> # {{{
 				# prepare
@@ -505,7 +518,7 @@ httpFetch = do ->
 						case a.indexOf 'application/json'
 							# Object
 							d = jsonDecode b
-						case a.indexOf 'text'
+						case a.indexOf 'text/'
 							# String
 							d = textDecode b
 						default
@@ -515,8 +528,14 @@ httpFetch = do ->
 						# update secret anyway
 						sec.save!
 				# check for empty response
-				if d == null and data.notNull
-					throw new FetchError 'Empty response', r.status
+				if data.notNull and \
+				   ((a = typeof! d) == 'Null' or \
+				    a == 'Blob' and a.size == 0 or \
+				    a == 'ArrayBuffer' and a.byteLength == 0)
+					###
+					throw new FetchError 'empty response', r.status
+				#if data.notNull and d == null
+				#	throw new FetchError 'Empty response', r.status
 				# prepare result
 				if data.fullHouse
 					res.data = d
