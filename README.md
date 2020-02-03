@@ -41,9 +41,9 @@ flag
   - **`notNull`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
 flag
   - **`timeout`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
-time (in seconds) to wait for server response
+connection timeout (in seconds)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
-, may be used for multiple requests cancellation
+, may be used for cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 with request headers
 - **`callback`**(*optional*) - result handler function, influences return value
@@ -179,7 +179,7 @@ var abortController = soFetch.get('resource', function(ok, res) {
   }
 });
 ```
-### When notNull
+### When `notNull` is true
 #### with async/await
 ```javascript
 var res = await soFetch.get('resource');
@@ -207,6 +207,9 @@ httpFetch.get('resource', function(ok, res) {
 ```
 
 ## Shortcuts
+### method
+#### `httpFetch.post(url, data[, callback(ok, res)])`
+#### `httpFetch.get(url[, callback(ok, res)])`
 ### content-type
 #### `httpFetch.json`
 - `application/json` (the default)
@@ -217,9 +220,6 @@ httpFetch.get('resource', function(ok, res) {
 - `text/*`
 #### `httpFetch.bin`
 - `application/octet-stream`
-### method
-#### `httpFetch.post(url, data[, callback(ok, res)])`
-#### `httpFetch.get(url[, callback(ok, res)])`
 
 
 ## File upload
