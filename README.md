@@ -46,6 +46,7 @@ connection timeout (in seconds)
 , may be used for cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 with request headers
+  ---
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
   - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
@@ -126,7 +127,7 @@ soFetch({
 });
 ```
 
-## Result handling patterns
+## Handling the result
 ### Default
 #### with async/await
 ```javascript
