@@ -16,8 +16,9 @@
     "json",
     "FormData",
     "upload",
-    "browser"
+    "browser",
+    "crypto"
   ],
   "main": "httpFetch.js",
-  "version": "1.1.5"
+  "version": "1.1.6"
 }
