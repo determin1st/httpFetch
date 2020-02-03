@@ -8,30 +8,48 @@ wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs
 ## Base syntax
 ### `httpFetch(options[, callback(ok, res)])`
 #### Parameters
-- **`options`** - object with:
+- **`options`** - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+with:
+  ---
+  basic
   - **`url`** - request destination [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
 , reference to the web resource (prefixed by **`baseUrl`**)
-  - **`data`**(*optional*) - to be sent as the request body
+  - **`data`**(*optional*) - [content](https://developer.mozilla.org/en-US/docs/Glossary/Type)
+to be sent as the request body
+  ---
+  native [fetch()](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
   - **`method`**(*optional*) - request method [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
   - **`mode`**(*optional*) - fetch mode [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-  - **`credentials`**(*optional*) - ...
-  - **`cache`**(*optional*) - ...
-  - **`redirect`**(*optional*) - ...
-  - **`referrer`**(*optional*) - ...
-  - **`referrerPolicy`**(*optional*) - ...
-  - **`integrity`**(*optional*) - ...
-  - **`keepalive`**(*optional*) - ...
+  - **`credentials`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a set
+  - **`cache`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a set
+  - **`redirect`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a [set](https://stackoverflow.com/a/42717388/7128889)
+  - **`referrer`**(*optional*) - [url](https://developer.mozilla.org/en-US/docs/Glossary/URL) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+  - **`referrerPolicy`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a [set](https://hacks.mozilla.org/2016/03/referrer-and-cache-control-apis-for-fetch/)
+  - **`integrity`**(*optional*) - [subresource integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+  - **`keepalive`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag
+  ---
+  advanced
+  - **`status200`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag
+  - **`fullHouse`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag
+  - **`notNull`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag
   - **`timeout`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 time (in seconds) to wait for server response
-  - **`retry`**(*optional*)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
+, may be used for multiple requests cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 with request headers
-, may be used for multiple requests cancellation
 - **`callback`**(*optional*) - result handler function, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
   - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
-#### Return value
+#### Returns
 [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
 [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback) or
 [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) (failure)
@@ -45,7 +63,19 @@ var soFetch = httpFetch.create({
   // to shorten url parameter in future invocations,
   // that is super-handy option
   //
-  baseUrl: 'http://localhost:8080/api/', // '' by default (change)
+  baseUrl: 'http://localhost:8080/api/', // '' by default
+  ///
+  // same as in fetch() init parameter
+  // https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
+  //
+  mode: 'same-origin',            // 'cors'
+  credentials:  'include',        // 'same-origin'
+  cache: 'no-store',              // 'default'
+  redirect: 'manual',             // 'follow'
+  referrer: 'http://example.fake',// ''
+  referrerPolicy: 'same-origin',  // ''
+  integrity: knownSRI,            // ''
+  keepalive: false,               // true
   ///
   // when your API works solid and optimal,
   // there is nothing special in http responses and
@@ -53,63 +83,36 @@ var soFetch = httpFetch.create({
   // (free from transfer / internal server problems)
   // but with sloppy and external api,
   // which uses statuses for data exchange,
-  // this option may help to handle those cases
+  // setting this option false may help to handle those cases
   //
-  status200: false, // true by default (better to leave)
+  status200: false, // true by default
+  ///
+  // to get everything,
+  // both request and reponse with headers and stuff,
+  // this option may be set true
+  //
+  fullHouse: true, // false by default
   ///
   // empty response (without content body) may be identified as `null`,
-  // but when remote API is designed without empty responses
-  // it may be treated as an error, check result handling section
+  // but if remote API is designed without empty responses
+  // it may be groupped with errors, for convenience
   //
-  notNull: true, // false by default (change, maybe)
+  notNull: true, // false by default
   ///
   // setting connection timeout to zero,
   // will make request wait forever (until server response)
   //
-  timeout: 0, // 20 by default (change if needed)
-  ///
-  // ...
-  //
-  retry: ?, // ?
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  mode: 'same-origin', // 'cors' by default (change if needed)
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  credentials: 'include', // 'same-origin' by default (change if needed)
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  cache: 'no-store', // 'default' by default (change if needed)
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  redirect: 'manual', // 'follow' by default ([beware](https://stackoverflow.com/a/42717388/7128889)!)
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  referrer: 'http://example.fake', // '' by default ([beware](https://hacks.mozilla.org/2016/03/referrer-and-cache-control-apis-for-fetch/)!)
-  referrerPolicy: 'same-origin', // '' by default
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  integrity: knownSRI, // '' by default ([beware](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity)!)
-  ///
-  // same as in [fetch() init parameter](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  //
-  keepalive: true, // false by default (change if needed)
+  timeout: 0, // 20 by default
   ///
   // custom request headers
   //
   headers: {
     // when response arrives, fetch handler will try to parse it
-    // according to accepted content type setting:
-    accept: 'application/json'
+    // strictly, according to accepted content type:
+    accept: 'application/json',
     // remote API may require specific authorization headers set,
     // exact names and formats depend on implementation:
-    authorization: 'token '+accessToken
+    authorization: accessToken
   }
 });
 ```

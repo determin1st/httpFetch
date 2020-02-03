@@ -377,7 +377,7 @@ httpFetch = do ->
 		@referrer       = ''
 		@referrerPolicy = ''
 		@integrity      = ''
-		@keepalive      = false
+		@keepalive      = true
 		@signal         = null
 	# }}}
 	FetchError = do -> # {{{

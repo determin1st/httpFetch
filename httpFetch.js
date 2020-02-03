@@ -341,7 +341,7 @@ httpFetch = function(){
     this.referrer = '';
     this.referrerPolicy = '';
     this.integrity = '';
-    this.keepalive = false;
+    this.keepalive = true;
     this.signal = null;
   };
   FetchError = function(){
