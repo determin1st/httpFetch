@@ -241,8 +241,6 @@ httpFetch.get('resource', function(ok, res) {
 - `application/x-www-form-urlencoded`
 #### `httpFetch.text`
 - `text/*`
-#### `httpFetch.bin`
-- `application/octet-stream`
 
 
 ## Examples
