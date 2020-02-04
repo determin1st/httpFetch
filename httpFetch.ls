@@ -533,9 +533,7 @@ httpFetch = do ->
 				    a == 'Blob' and a.size == 0 or \
 				    a == 'ArrayBuffer' and a.byteLength == 0)
 					###
-					throw new FetchError 'empty response', r.status
-				#if data.notNull and d == null
-				#	throw new FetchError 'Empty response', r.status
+					throw new FetchError 'empty response', res.status
 				# prepare result
 				if data.fullHouse
 					res.data = d

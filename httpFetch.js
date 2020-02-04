@@ -479,7 +479,7 @@ httpFetch = function(){
           }
         }
         if (data.notNull && ((a = toString$.call(d).slice(8, -1)) === 'Null' || a === 'Blob' && a.size === 0 || a === 'ArrayBuffer' && a.byteLength === 0)) {
-          throw new FetchError('empty response', r.status);
+          throw new FetchError('empty response', res.status);
         }
         if (data.fullHouse) {
           res.data = d;

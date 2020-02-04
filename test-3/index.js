@@ -37,25 +37,41 @@ window.addEventListener('load', main = async function() {
             console.log('#1: fail!');
         }
         /***/
-        // #2: incorrect response
-        // The server specifies content-type header as application/json
-        // but returns text/html. This may happen when remote code
-        // has problems with the output, for example,
-        // PHP's [E_NOTICE]/[E_WARNING]/[E_ERROR] pollution..
-        res = await myFetch({
-            url: 'fail/non-json-response',
-            headers: {
-                accept: 'application/json'
-            }
-        });
+        // #2: incorrect JSON responses
+        console.log('#2.1: TEXT RESPONSE');
+        res = await myFetch.get('json/text');
         if (res instanceof Error)
         {
-            console.log('#2: '+res.message);
-            console.log('#2: ok!');
+            console.log('#2.1: '+res.message);
+            console.log('#2.1: ok!');
         }
         else
         {
-            console.log('#2: fail!');
+            console.log('#2.1: fail!');
+        }
+        console.log('#2.2: EMPTY JSON:STRING RESPONSE');
+        res = await myFetch.get('json/string');
+        if (res instanceof Error)
+        {
+            console.log('#2.2: '+res.message);
+            console.log('#2.2: fail!');
+        }
+        else {
+            console.log('#2.2: ok!');
+        }
+        console.log('#2.3: EMPTY RESPONSE');
+        res = await myFetch({
+            url: 'json/empty',
+            notNull: true
+        });
+        if (res instanceof Error)
+        {
+            console.log('#2.3: '+res.message);
+            console.log('#2.3: ok!');
+        }
+        else
+        {
+            console.log('#2.3: fail!');
         }
         /***/
         // #3: Random http statuses (except 200=OK)
@@ -66,14 +82,15 @@ window.addEventListener('load', main = async function() {
             res = await myFetch.get('status/'+s);
             if (res instanceof Error)
             {
-                console.log('#3-'+s+'xx:'+res.status+': '+res.message);
-                console.log('#3-'+s+'xx:'+res.status+': ok!');
+                console.log('#3.'+s+'xx:'+res.status+': '+res.message);
+                console.log('#3.'+s+'xx:'+res.status+': ok!');
             }
             else
             {
-                console.log('#3-'+s+'xx: fail!');
+                console.log('#3.'+s+'xx: fail!');
             }
         }
+        /***/
         // unlock
         state = false;
         console.log('END');
