@@ -27,51 +27,51 @@ window.addEventListener('load', main = async function() {
         // Remote API will delay for more than timeout is, so,
         // the request will be cancelled..
         res = await myFetch.get('sleep/10');
-        if (res instanceof Error)
-        {
-            console.log('#1: '+res.message);
-            console.log('#1: ok!');
+        if (res instanceof Error) {
+            console.log('#1: '+res.message+': ok!');
         }
-        else
-        {
+        else {
             console.log('#1: fail!');
         }
         /***/
         // #2: incorrect JSON responses
-        console.log('#2.1: TEXT RESPONSE');
         res = await myFetch.get('json/text');
-        if (res instanceof Error)
-        {
-            console.log('#2.1: '+res.message);
-            console.log('#2.1: ok!');
+        if (res instanceof Error) {
+            console.log('#2.1: '+res.message+': ok!');
         }
-        else
-        {
+        else {
             console.log('#2.1: fail!');
         }
-        console.log('#2.2: EMPTY JSON:STRING RESPONSE');
-        res = await myFetch.get('json/string');
-        if (res instanceof Error)
-        {
-            console.log('#2.2: '+res.message);
-            console.log('#2.2: fail!');
+        res = await myFetch.get('json/empty_string');
+        if (res instanceof Error) {
+            console.log('#2.2: '+res.message+': fail!');
         }
         else {
             console.log('#2.2: ok!');
         }
-        console.log('#2.3: EMPTY RESPONSE');
         res = await myFetch({
             url: 'json/empty',
             notNull: true
         });
-        if (res instanceof Error)
-        {
-            console.log('#2.3: '+res.message);
-            console.log('#2.3: ok!');
+        if (res instanceof Error) {
+            console.log('#2.3: '+res.message+': ok!');
         }
-        else
-        {
+        else {
             console.log('#2.3: fail!');
+        }
+        res = await myFetch.get('json');
+        if (res instanceof Error) {
+            console.log('#2.4: '+res.message+': fail!');
+        }
+        else {
+            console.log('#2.4: ok!');
+        }
+        res = await myFetch.get('json/incorrect');
+        if (res instanceof Error) {
+            console.log('#2.4: '+res.message+': ok!');
+        }
+        else {
+            console.log('#2.4: fail!');
         }
         /***/
         // #3: Random http statuses (except 200=OK)
@@ -80,13 +80,10 @@ window.addEventListener('load', main = async function() {
         for (var s of [1,2,3,4,5])
         {
             res = await myFetch.get('status/'+s);
-            if (res instanceof Error)
-            {
-                console.log('#3.'+s+'xx:'+res.status+': '+res.message);
-                console.log('#3.'+s+'xx:'+res.status+': ok!');
+            if (res instanceof Error) {
+                console.log('#3.'+s+'xx:'+res.status+': '+res.message+': ok!');
             }
-            else
-            {
+            else {
                 console.log('#3.'+s+'xx: fail!');
             }
         }

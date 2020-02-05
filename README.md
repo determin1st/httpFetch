@@ -53,7 +53,6 @@ with request headers
 #### Returns
 [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
 [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback) or
-[`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) (failure)
 
 
 ## Creating an instance
@@ -99,6 +98,12 @@ var soFetch = httpFetch.create({
   // it may be groupped with errors, for convenience
   //
   notNull: true, // false by default
+  ///
+  // Promise will resolve everything by default,
+  // if try/catch or .catch() constructs are used to handle the result,
+  // this option must be enabled
+  //
+  promiseReject: true, // false by default
   ///
   // setting connection timeout to zero,
   // will make request wait forever (until server response)
@@ -195,7 +200,7 @@ else
 ```
 #### with callback
 ```javascript
-httpFetch.get('resource', function(ok, res) {
+soFetch.get('resource', function(ok, res) {
   if (ok)
   {
     // success
@@ -223,9 +228,14 @@ httpFetch.get('resource', function(ok, res) {
   - `application/octet-stream`
   - `*`
 - [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)
+  - `application/json`
+  - `application/octet-stream`
+  - `image/*`
+  - `audio/*`
+  - `video/*`
   - when response is empty and **`notNull`** is `false`
 - [Error](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
-  - when error occur
+  - when error occurs
   - when response is empty and **`notNull`** is `true`
 
 

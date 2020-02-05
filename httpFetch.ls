@@ -330,12 +330,11 @@ httpFetch = do ->
 		@status200      = true
 		@fullHouse      = false
 		@notNull        = false
+		@promiseReject  = false
 		@timeout        = 20
 		@retry          = null
 		@secret         = null
-		@headers        = {
-			'content-type': 'application/json;charset=utf-8' # http-fetch-json
-		}
+		@headers        = null
 	###
 	FetchConfig.prototype = {
 		fetchOptions: [
@@ -350,17 +349,24 @@ httpFetch = do ->
 		]
 		dataOptions: [
 			'baseUrl'
+			'timeout'
+		]
+		flagOptions: [
 			'status200'
 			'fullHouse'
 			'notNull'
-			'timeout'
+			'promiseReject'
 		]
 		setOptions: (o) !->
-			# set primitives
+			# set native
 			for a in @fetchOptions when o.hasOwnProperty a
 				@[a] = o[a]
+			# set advanced
 			for a in @dataOptions when o.hasOwnProperty a
 				@[a] = o[a]
+			# set flags
+			for a in @flagOptions when o.hasOwnProperty a
+				@[a] = !!o[a]
 			# set headers
 			if o.headers
 				@headers = {}
@@ -370,7 +376,7 @@ httpFetch = do ->
 	# }}}
 	FetchOptions = !-> # {{{
 		@method         = 'GET'
-		@headers        = {}
+		@headers        = {'content-type': 'application/json;charset=utf-8'}
 		@body           = null
 		@mode           = 'cors'
 		@credentials    = 'same-origin'
@@ -419,27 +425,26 @@ httpFetch = do ->
 			@delay        = 1
 		###
 		return FetchData = (config) !->
-			# result control
+			# controllers and data
 			@promise   = null
 			@response  = new ResponseData!
-			# cancellation control
+			@retry     = new RetryData!
 			@aborter   = null
 			@timer     = 0
 			@timerFunc = !~>
 				@timer = 0
 				@aborter.abort!
-			# connection control
-			@retry     = new RetryData!
-			# individual request configuration
-			@status200 = config.status200
-			@fullHouse = config.fullHouse
-			@notNull   = config.notNull
-			@timeout   = 1000 * config.timeout
+			# cumulative request configuration
+			@status200     = config.status200
+			@fullHouse     = config.fullHouse
+			@notNull       = config.notNull
+			@promiseReject = config.promiseReject
+			@timeout       = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
 		handler = (url, options, data, callback) -> # {{{
 			responseHandler = (r) -> # {{{
-				# terminate timeout timer
+				# terminate timer
 				if data.timer
 					clearTimeout data.timer
 					data.timer = 0
@@ -547,12 +552,23 @@ httpFetch = do ->
 					data.promise.resolve res
 			# }}}
 			errorHandler = (e) !-> # {{{
+				# terminate timer
+				if data.timer
+					clearTimeout data.timer
+					data.timer = 0
+				else if data.timeout and options.signal.aborted
+					# replace aborter Error with
+					# connection timeout Error
+					e = new FetchError 'connection timed out', 0
 				# return through callback or promise
 				if callback
 					callback false, e
 				else
 					data.promise.pending = false
-					data.promise.resolve e
+					if data.promiseReject
+						data.promise.reject e
+					else
+						data.promise.resolve e
 				/***
 				# TODO: retry request?!
 				while true
@@ -601,35 +617,38 @@ httpFetch = do ->
 		@fetch = (options, callback) ->
 			# PREPARE
 			# {{{
-			# check parameters
-			if typeof! options != 'Object' or \
-			   callback and typeof callback != 'function'
-				###
-				return new Error 'incorrect parameters'
-			# create options and data
 			o = new FetchOptions!
 			d = new FetchData config
+			e = null
+			# check user options
+			if (a = typeof! options) != 'Object'
+				if a == 'String'
+					# assume url passed as a first parameter
+					options = {url: options}
+				else
+					# prepare dummy and set error
+					options = {}
+					e = new Error 'incorrect options parameter'
+			# check callback
+			if callback and typeof callback != 'function'
+				callback = false
+				e = new Error 'incorrect callback parameter'
 			# }}}
 			# INITIALIZE
 			# individual options {{{
-			###
+			# set timeout
 			if options.hasOwnProperty 'timeout' and (a = options.timeout) >= 0
 				d.timeout = 1000 * a
-			if options.hasOwnProperty 'status200'
-				d.status200 = !!options.status200
-			if options.hasOwnProperty 'fullHouse'
-				d.fullHouse = !!options.fullHouse
-			if options.hasOwnProperty 'notNull'
-				d.notNull = !!options.notNull
-			###
-			# set native fetch options
+			# set flags
+			for a in config.flagOptions when options.hasOwnProperty a
+				d[a] = !!options[a]
+			# set native
 			for a in config.fetchOptions
 				if options.hasOwnProperty a
 					o[a] = options[a]
 				else if config[a] != null
 					o[a] = config[a]
-			# }}}
-			# request method {{{
+			# set request method
 			if options.hasOwnProperty 'method'
 				o.method = options.method
 			else if options.data
@@ -638,13 +657,14 @@ httpFetch = do ->
 			# request headers {{{
 			# combine default headers with config and
 			# put them into request
-			d.response.request.headers = o.headers <<< config.headers
+			o.headers <<< config.headers if config.headers
+			d.response.request.headers = o.headers
 			# combine with options
 			if a = options.headers
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
 			# check encryption enabled
-			if a = config.secret
+			if a = config.secret and not e
 				# enforce proper encoding
 				o.headers['content-encoding'] = 'aes256gcm'
 				# advance counter and
@@ -667,12 +687,12 @@ httpFetch = do ->
 					case a.indexOf 'application/json'
 						# JSON
 						if b != 'String' and not (c = jsonEncode c)
-							return new Error 'failed to encode request data'
+							e = new Error 'failed to encode request data'
 					case a.indexOf 'multipart/form-data'
 						# TODO: JSON in FormData
 						# prepared data is not supported
 						if b in <[String FormData]>
-							return new Error 'incorrect request data'
+							e = new Error 'incorrect request data'
 						# remove type header
 						delete o.headers['content-type']
 						# the data will be wrapped after encryption!
@@ -680,22 +700,22 @@ httpFetch = do ->
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							return new Error 'incorrect request data'
+							e = new Error 'incorrect request data'
 				else
 					# NOT ENCRYPTED!
 					switch 0
 					case a.indexOf 'application/json'
 						# JSON
 						if b != 'String' and (c = jsonEncode c) == null
-							return new Error 'failed to encode request data'
+							e = new Error 'failed to encode request data'
 					case a.indexOf 'application/x-www-form-urlencoded'
 						# URLSearchParams
 						if b not in <[String URLSearchParams]> and not (c = newQueryString c)
-							return new Error 'failed to encode request data'
+							e = new Error 'failed to encode request data'
 					case a.indexOf 'multipart/form-data'
 						# FormData
 						if b not in <[String FormData]> and not (c = newFormData c)
-							return new Error 'failed to encode request data'
+							e = new Error 'failed to encode request data'
 						# remove type header, because it conflicts with FormData object,
 						# despite it perfectly fits the logic (wtf)
 						if b != 'String'
@@ -703,7 +723,7 @@ httpFetch = do ->
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							return new Error 'incorrect request data'
+							e = new Error 'incorrect request data'
 				# set
 				o.body = d.response.request.data = c
 			# }}}
@@ -714,6 +734,12 @@ httpFetch = do ->
 				else new AbortController!
 			# set abort signal
 			o.signal = d.aborter.signal
+			# set promise
+			if not callback
+				# create custom promise
+				d.promise = newPromise d.aborter
+				# check for instant error
+				# ...
 			/*** TODO: set retry
 			# copy configuration
 			a = d.retry
@@ -731,9 +757,20 @@ httpFetch = do ->
 			a.current = 0
 			a.maxBackoff = 1000 * a.maxBackoff
 			/***/
-			# set promise
-			if not callback
-				d.promise = newPromise d.aborter
+			# }}}
+			# check instant error {{{
+			if e
+				# failure
+				if callback
+					callback false, e
+					return d.aborter
+				else
+					d.promise.pending = false
+					if d.promiseReject
+						d.promise.reject e
+					else
+						d.promise.resolve e
+					return d.promise
 			# }}}
 			# RUN HANDLER
 			# determine request url
@@ -759,7 +796,10 @@ httpFetch = do ->
 						callback false, e
 					else
 						d.promise.pending = false
-						d.promise.resolve e
+						if d.promiseReject
+							d.promise.reject e
+						else
+							d.promise.resolve e
 			else
 				# invoke handler
 				handler a, o, d, callback
@@ -788,7 +828,6 @@ httpFetch = do ->
 			o = {
 				url: url
 				method: 'GET'
-				data: ''
 			}
 			return handler.fetch o, callback
 		# }}}
@@ -1012,17 +1051,20 @@ httpFetch = do ->
 			return (add [], o, '').join '&'
 	# }}}
 	newPromise = (aborter) -> # {{{
-		# create standard promise and take out its resolver routine
-		a = null
-		b = new Promise (resolve) !->
+		# create standard promise and
+		# store resolvers
+		a = b = null
+		p = new Promise (resolve, reject) !->
 			a := resolve
-		# customize standard promise object
-		b.pending = true
-		b.resolve = a
-		b.controller = aborter
-		b.abort = b.cancel = !-> aborter.abort!
+			b := reject
+		# customize standard object
+		p.resolve = a
+		p.reject  = b
+		p.pending = true
+		p.controller = aborter
+		p.abort = p.cancel = !-> aborter.abort!
 		# done
-		return b
+		return p
 	# }}}
 	newInstance = (baseConfig) -> (userConfig) -> # {{{
 		# create new configuration

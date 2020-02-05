@@ -297,16 +297,16 @@ httpFetch = function(){
     this.status200 = true;
     this.fullHouse = false;
     this.notNull = false;
+    this.promiseReject = false;
     this.timeout = 20;
     this.retry = null;
     this.secret = null;
-    this.headers = {
-      'content-type': 'application/json;charset=utf-8'
-    };
+    this.headers = null;
   };
   FetchConfig.prototype = {
     fetchOptions: ['mode', 'credentials', 'cache', 'redirect', 'referrer', 'referrerPolicy', 'integrity', 'keepalive'],
-    dataOptions: ['baseUrl', 'status200', 'fullHouse', 'notNull', 'timeout'],
+    dataOptions: ['baseUrl', 'timeout'],
+    flagOptions: ['status200', 'fullHouse', 'notNull', 'promiseReject'],
     setOptions: function(o){
       var i$, ref$, len$, a, b;
       for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
@@ -321,6 +321,12 @@ httpFetch = function(){
           this[a] = o[a];
         }
       }
+      for (i$ = 0, len$ = (ref$ = this.flagOptions).length; i$ < len$; ++i$) {
+        a = ref$[i$];
+        if (o.hasOwnProperty(a)) {
+          this[a] = !!o[a];
+        }
+      }
       if (o.headers) {
         this.headers = {};
         for (a in ref$ = o.headers) {
@@ -332,7 +338,9 @@ httpFetch = function(){
   };
   FetchOptions = function(){
     this.method = 'GET';
-    this.headers = {};
+    this.headers = {
+      'content-type': 'application/json;charset=utf-8'
+    };
     this.body = null;
     this.mode = 'cors';
     this.credentials = 'same-origin';
@@ -392,16 +400,17 @@ httpFetch = function(){
       var this$ = this;
       this.promise = null;
       this.response = new ResponseData();
+      this.retry = new RetryData();
       this.aborter = null;
       this.timer = 0;
       this.timerFunc = function(){
         this$.timer = 0;
         this$.aborter.abort();
       };
-      this.retry = new RetryData();
       this.status200 = config.status200;
       this.fullHouse = config.fullHouse;
       this.notNull = config.notNull;
+      this.promiseReject = config.promiseReject;
       this.timeout = 1000 * config.timeout;
     };
   }();
@@ -494,11 +503,21 @@ httpFetch = function(){
         }
       };
       errorHandler = function(e){
+        if (data.timer) {
+          clearTimeout(data.timer);
+          data.timer = 0;
+        } else if (data.timeout && options.signal.aborted) {
+          e = new FetchError('connection timed out', 0);
+        }
         if (callback) {
           callback(false, e);
         } else {
           data.promise.pending = false;
-          data.promise.resolve(e);
+          if (data.promiseReject) {
+            data.promise.reject(e);
+          } else {
+            data.promise.resolve(e);
+          }
         }
         /***
         # TODO: retry request?!
@@ -541,23 +560,32 @@ httpFetch = function(){
     this.config = config;
     this.api = new Api(this);
     this.fetch = function(options, callback){
-      var o, d, a, i$, ref$, len$, b, c;
-      if (toString$.call(options).slice(8, -1) !== 'Object' || callback && typeof callback !== 'function') {
-        return new Error('incorrect parameters');
-      }
+      var o, d, e, a, i$, ref$, len$, b, c;
       o = new FetchOptions();
       d = new FetchData(config);
+      e = null;
+      if ((a = toString$.call(options).slice(8, -1)) !== 'Object') {
+        if (a === 'String') {
+          options = {
+            url: options
+          };
+        } else {
+          options = {};
+          e = new Error('incorrect options parameter');
+        }
+      }
+      if (callback && typeof callback !== 'function') {
+        callback = false;
+        e = new Error('incorrect callback parameter');
+      }
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
       }
-      if (options.hasOwnProperty('status200')) {
-        d.status200 = !!options.status200;
-      }
-      if (options.hasOwnProperty('fullHouse')) {
-        d.fullHouse = !!options.fullHouse;
-      }
-      if (options.hasOwnProperty('notNull')) {
-        d.notNull = !!options.notNull;
+      for (i$ = 0, len$ = (ref$ = config.flagOptions).length; i$ < len$; ++i$) {
+        a = ref$[i$];
+        if (options.hasOwnProperty(a)) {
+          d[a] = !!options[a];
+        }
       }
       for (i$ = 0, len$ = (ref$ = config.fetchOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];
@@ -572,13 +600,16 @@ httpFetch = function(){
       } else if (options.data) {
         o.method = 'POST';
       }
-      d.response.request.headers = import$(o.headers, config.headers);
+      if (config.headers) {
+        import$(o.headers, config.headers);
+      }
+      d.response.request.headers = o.headers;
       if (a = options.headers) {
         for (b in a) {
           o.headers[b.toLowerCase()] = a[b];
         }
       }
-      if (a = config.secret) {
+      if (a = config.secret && !e) {
         o.headers['content-encoding'] = 'aes256gcm';
         o.headers['etag'] = a.next().tag();
       }
@@ -592,35 +623,35 @@ httpFetch = function(){
             // fallthrough
           case a.indexOf('application/json'):
             if (b !== 'String' && !(c = jsonEncode(c))) {
-              return new Error('failed to encode request data');
+              e = new Error('failed to encode request data');
             }
             break;
           case a.indexOf('multipart/form-data'):
             if (b === 'String' || b === 'FormData') {
-              return new Error('incorrect request data');
+              e = new Error('incorrect request data');
             }
             delete o.headers['content-type'];
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              return new Error('incorrect request data');
+              e = new Error('incorrect request data');
             }
           }
         } else {
           switch (0) {
           case a.indexOf('application/json'):
             if (b !== 'String' && (c = jsonEncode(c)) === null) {
-              return new Error('failed to encode request data');
+              e = new Error('failed to encode request data');
             }
             break;
           case a.indexOf('application/x-www-form-urlencoded'):
             if ((b !== 'String' && b !== 'URLSearchParams') && !(c = newQueryString(c))) {
-              return new Error('failed to encode request data');
+              e = new Error('failed to encode request data');
             }
             break;
           case a.indexOf('multipart/form-data'):
             if ((b !== 'String' && b !== 'FormData') && !(c = newFormData(c))) {
-              return new Error('failed to encode request data');
+              e = new Error('failed to encode request data');
             }
             if (b !== 'String') {
               delete o.headers['content-type'];
@@ -628,7 +659,7 @@ httpFetch = function(){
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              return new Error('incorrect request data');
+              e = new Error('incorrect request data');
             }
           }
         }
@@ -638,6 +669,9 @@ httpFetch = function(){
         ? options.aborter
         : new AbortController();
       o.signal = d.aborter.signal;
+      if (!callback) {
+        d.promise = newPromise(d.aborter);
+      }
       /*** TODO: set retry
       # copy configuration
       a = d.retry
@@ -655,8 +689,19 @@ httpFetch = function(){
       a.current = 0
       a.maxBackoff = 1000 * a.maxBackoff
       /***/
-      if (!callback) {
-        d.promise = newPromise(d.aborter);
+      if (e) {
+        if (callback) {
+          callback(false, e);
+          return d.aborter;
+        } else {
+          d.promise.pending = false;
+          if (d.promiseReject) {
+            d.promise.reject(e);
+          } else {
+            d.promise.resolve(e);
+          }
+          return d.promise;
+        }
       }
       a = options.url
         ? config.baseUrl + options.url
@@ -674,7 +719,11 @@ httpFetch = function(){
             callback(false, e);
           } else {
             d.promise.pending = false;
-            d.promise.resolve(e);
+            if (d.promiseReject) {
+              d.promise.reject(e);
+            } else {
+              d.promise.resolve(e);
+            }
           }
         });
       } else {
@@ -701,8 +750,7 @@ httpFetch = function(){
       var o;
       o = {
         url: url,
-        method: 'GET',
-        data: ''
+        method: 'GET'
       };
       return handler.fetch(o, callback);
     };
@@ -929,18 +977,20 @@ httpFetch = function(){
     };
   }();
   newPromise = function(aborter){
-    var a, b;
-    a = null;
-    b = new Promise(function(resolve){
+    var a, b, p;
+    a = b = null;
+    p = new Promise(function(resolve, reject){
       a = resolve;
+      b = reject;
     });
-    b.pending = true;
-    b.resolve = a;
-    b.controller = aborter;
-    b.abort = b.cancel = function(){
+    p.resolve = a;
+    p.reject = b;
+    p.pending = true;
+    p.controller = aborter;
+    p.abort = p.cancel = function(){
       aborter.abort();
     };
-    return b;
+    return p;
   };
   newInstance = function(baseConfig){
     return function(userConfig){
