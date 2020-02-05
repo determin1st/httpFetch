@@ -442,7 +442,7 @@ httpFetch = do ->
 			@timeout       = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
-		handler = (url, options, data, callback) -> # {{{
+		handler = (url, options, data, callback) !-> # {{{
 			responseHandler = (r) -> # {{{
 				# terminate timer
 				if data.timer
@@ -605,8 +605,8 @@ httpFetch = do ->
 			# set timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
-			# call api
-			return fetch url, options
+			# call the api
+			fetch url, options
 				.then responseHandler
 				.then successHandler
 				.catch errorHandler
@@ -654,7 +654,7 @@ httpFetch = do ->
 			else if options.data
 				o.method = 'POST'
 			# }}}
-			# request headers {{{
+			# request headers and body {{{
 			# combine default headers with config and
 			# put them into request
 			o.headers <<< config.headers if config.headers
@@ -663,25 +663,24 @@ httpFetch = do ->
 			if a = options.headers
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
-			# check encryption enabled
-			if a = config.secret and not e
-				# enforce proper encoding
-				o.headers['content-encoding'] = 'aes256gcm'
-				# advance counter and
-				# set request counter tag
-				o.headers['etag'] = a.next!tag!
-			# }}}
-			# request body {{{
-			if c = options.data
+			# check data
+			if c = options.data and not e
+				# DATA!
 				# prepare
 				a = o.headers['content-type']
 				b = typeof! c
-				# check
+				# check encryption enabled
 				if config.secret
 					# ENCRYPTED!
+					# enforce proper encoding
+					o.headers['content-encoding'] = 'aes256gcm'
+					# advance counter and
+					# set request counter tag
+					o.headers['etag'] = config.secret.next!tag!
+					# check content-type
 					switch 0
 					case a.indexOf 'application/x-www-form-urlencoded'
-						# Enforce JSON
+						# TODO: Enforce JSON?
 						o.headers['content-type'] = 'application/json'
 						fallthrough
 					case a.indexOf 'application/json'
@@ -703,6 +702,7 @@ httpFetch = do ->
 							e = new Error 'incorrect request data'
 				else
 					# NOT ENCRYPTED!
+					# check content-type
 					switch 0
 					case a.indexOf 'application/json'
 						# JSON
@@ -726,6 +726,10 @@ httpFetch = do ->
 							e = new Error 'incorrect request data'
 				# set
 				o.body = d.response.request.data = c
+			else
+				# NO DATA!
+				# remove content-type header
+				delete o.headers['content-type']
 			# }}}
 			# request controllers {{{
 			# set aborter

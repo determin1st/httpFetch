@@ -555,7 +555,7 @@ httpFetch = function(){
       if (data.timeout) {
         data.timer = setTimeout(data.timerFunc, data.timeout);
       }
-      return fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+      fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
     };
     this.config = config;
     this.api = new Api(this);
@@ -609,14 +609,12 @@ httpFetch = function(){
           o.headers[b.toLowerCase()] = a[b];
         }
       }
-      if (a = config.secret && !e) {
-        o.headers['content-encoding'] = 'aes256gcm';
-        o.headers['etag'] = a.next().tag();
-      }
-      if (c = options.data) {
+      if (c = options.data && !e) {
         a = o.headers['content-type'];
         b = toString$.call(c).slice(8, -1);
         if (config.secret) {
+          o.headers['content-encoding'] = 'aes256gcm';
+          o.headers['etag'] = config.secret.next().tag();
           switch (0) {
           case a.indexOf('application/x-www-form-urlencoded'):
             o.headers['content-type'] = 'application/json';
@@ -664,6 +662,8 @@ httpFetch = function(){
           }
         }
         o.body = d.response.request.data = c;
+      } else {
+        delete o.headers['content-type'];
       }
       d.aborter = options.aborter
         ? options.aborter
