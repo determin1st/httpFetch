@@ -40,6 +40,8 @@ flag
 flag
   - **`notNull`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
 flag
+  - **`promiseReject`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag
   - **`timeout`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 connection timeout (in seconds)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
