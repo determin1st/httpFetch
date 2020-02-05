@@ -664,7 +664,7 @@ httpFetch = do ->
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
 			# check data
-			if c = options.data and not e
+			if (c = options.data) and not e
 				# DATA!
 				# prepare
 				a = o.headers['content-type']

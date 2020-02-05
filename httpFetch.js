@@ -609,7 +609,7 @@ httpFetch = function(){
           o.headers[b.toLowerCase()] = a[b];
         }
       }
-      if (c = options.data && !e) {
+      if ((c = options.data) && !e) {
         a = o.headers['content-type'];
         b = toString$.call(c).slice(8, -1);
         if (config.secret) {
