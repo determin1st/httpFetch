@@ -442,6 +442,9 @@ httpFetch = do ->
 			@timeout       = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
+		/**
+		* WARNING: high level of code complexity
+		*/
 		handler = (url, options, data, callback) !-> # {{{
 			responseHandler = (r) -> # {{{
 				# terminate timer
@@ -614,25 +617,72 @@ httpFetch = do ->
 		# create object shape
 		@config = config
 		@api = new Api @
-		@fetch = (options, callback) ->
-			# PREPARE
+		@fetch = (options, data, callback) ->
+			# PREPARE BASE
 			# {{{
+			# create important objects
 			o = new FetchOptions!
 			d = new FetchData config
 			e = null
-			# check user options
-			if (a = typeof! options) != 'Object'
-				if a == 'String'
-					# assume url passed as a first parameter
-					options = {url: options}
-				else
-					# prepare dummy and set error
-					options = {}
-					e = new Error 'incorrect options parameter'
-			# check callback
-			if callback and typeof callback != 'function'
-				callback = false
-				e = new Error 'incorrect callback parameter'
+			# TODO: parse arguments
+			if (a = arguments.length)
+				# check what syntax is used
+				switch typeof! options
+				case 'String'
+					# Shorter syntax
+					# re-create options object for the lazy user
+					switch a
+					case 3
+						options = {
+							url: options
+							data: data
+							method: 'POST'
+						}
+					case 2
+						if typeof data == 'function'
+							options = {
+								url: options
+								method: 'GET'
+							}
+						else
+							# this case allow to use undefined as a data,
+							# the request will be sent as POST with empty body
+							options = {
+								url: options
+								data: data
+								method: 'POST'
+							}
+					default
+						options = {
+							url: options
+							method: 'GET'
+						}
+					# continue the fall
+					fallthrough
+				case 'Object'
+					# Base syntax
+					# compose url
+					url = if config.baseUrl
+						then config.baseUrl
+						else ''
+					if options.hasOwnProperty 'url'
+						url = url + options.url
+					# data must be callback,
+					# because third parameter is not in API spec
+					if data and typeof data != 'function'
+						data = false
+						e = new Error 'incorrect callback type'
+					# swap it
+					callback = data
+					# get the data
+					data = if options.hasOwnProperty 'data'
+						then options.data
+						else undefined
+					# done
+				default
+					e = new Error 'incorrect options type, '+a
+			else
+				e = new Error 'no parameters'
 			# }}}
 			# INITIALIZE
 			# individual options {{{
@@ -664,19 +714,19 @@ httpFetch = do ->
 				for b of a
 					o.headers[b.toLowerCase!] = a[b]
 			# check data
-			if (c = options.data) and not e
+			if data != undefined and not e
 				# DATA!
 				# prepare
 				a = o.headers['content-type']
-				b = typeof! c
+				b = typeof! data
 				# check encryption enabled
-				if config.secret
+				if c = config.secret
 					# ENCRYPTED!
 					# enforce proper encoding
 					o.headers['content-encoding'] = 'aes256gcm'
 					# advance counter and
 					# set request counter tag
-					o.headers['etag'] = config.secret.next!tag!
+					o.headers['etag'] = c.next!tag!
 					# check content-type
 					switch 0
 					case a.indexOf 'application/x-www-form-urlencoded'
@@ -685,7 +735,7 @@ httpFetch = do ->
 						fallthrough
 					case a.indexOf 'application/json'
 						# JSON
-						if b != 'String' and not (c = jsonEncode c)
+						if b != 'String' and not (data = jsonEncode data)
 							e = new Error 'failed to encode request data'
 					case a.indexOf 'multipart/form-data'
 						# TODO: JSON in FormData
@@ -696,25 +746,27 @@ httpFetch = do ->
 						delete o.headers['content-type']
 						# the data will be wrapped after encryption!
 						# ...
+						# ...
+						# ...
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							e = new Error 'incorrect request data'
+							e = new Error 'incorrect data type'
 				else
 					# NOT ENCRYPTED!
 					# check content-type
 					switch 0
 					case a.indexOf 'application/json'
 						# JSON
-						if b != 'String' and (c = jsonEncode c) == null
+						if b != 'String' and not (data = jsonEncode data)
 							e = new Error 'failed to encode request data'
 					case a.indexOf 'application/x-www-form-urlencoded'
 						# URLSearchParams
-						if b not in <[String URLSearchParams]> and not (c = newQueryString c)
+						if b not in <[String URLSearchParams]> and not (data = newQueryString data)
 							e = new Error 'failed to encode request data'
 					case a.indexOf 'multipart/form-data'
 						# FormData
-						if b not in <[String FormData]> and not (c = newFormData c)
+						if b not in <[String FormData]> and not (data = newFormData data)
 							e = new Error 'failed to encode request data'
 						# remove type header, because it conflicts with FormData object,
 						# despite it perfectly fits the logic (wtf)
@@ -723,11 +775,11 @@ httpFetch = do ->
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							e = new Error 'incorrect request data'
+							e = new Error 'incorrect data type'
 				# set
-				o.body = d.response.request.data = c
+				o.body = d.response.request.data = data
 			else
-				# NO DATA!
+				# NO DATA! NO BODY! NO HEAD!
 				# remove content-type header
 				delete o.headers['content-type']
 			# }}}
@@ -762,9 +814,9 @@ httpFetch = do ->
 			a.maxBackoff = 1000 * a.maxBackoff
 			/***/
 			# }}}
-			# check instant error {{{
+			# check for instant error {{{
 			if e
-				# failure
+				# fail fast, but not faster
 				if callback
 					callback false, e
 					return d.aborter
@@ -777,25 +829,23 @@ httpFetch = do ->
 					return d.promise
 			# }}}
 			# RUN HANDLER
-			# determine request url
-			a = if options.url
-				then config.baseUrl + options.url
-				else config.baseUrl
 			# check secret
-			if b = config.secret
+			if config.secret
 				# start request encryption
-				c = b.encrypt o.body, true
+				data = config.secret.encrypt o.body, true
 				# wait completed
-				c.data.then (e) !->
-					# sucess
-					# set encrypted data
-					o.body = c.data = e
-					d.response.request.crypto = c
+				data.data.then (e) !->
+					# successfully encrypted
+					# store properly
+					o.body = data.data = e
+					d.response.request.crypto = data
+					# check aborted
+					if o.signal.aborted
+						throw new Error 'aborted programmatically, forgot to encrypt'
 					# invoke handler
-					if not o.signal.aborted
-						handler a, o, d, callback
+					handler url, o, d, callback
 				.catch (e) !->
-					# failure
+					# failed to encrypt
 					if callback
 						callback false, e
 					else
@@ -806,7 +856,7 @@ httpFetch = do ->
 							d.promise.resolve e
 			else
 				# invoke handler
-				handler a, o, d, callback
+				handler url, o, d, callback
 			# done
 			return if callback
 				then d.aborter
@@ -817,24 +867,7 @@ httpFetch = do ->
 		# instance constructor
 		@create = newInstance handler.config
 		###
-		# method shortcuts
-		@post = (url, data, callback) -> # {{{
-			o = {
-				url: url
-				method: 'POST'
-				data: if data
-					then data
-					else ''
-			}
-			return handler.fetch o, callback
-		# }}}
-		@get = (url, callback) -> # {{{
-			o = {
-				url: url
-				method: 'GET'
-			}
-			return handler.fetch o, callback
-		# }}}
+		# content-type shortcuts(?)
 		###
 		# cryptography section
 		if not apiCrypto

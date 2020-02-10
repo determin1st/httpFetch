@@ -49,17 +49,36 @@ connection timeout (in seconds)
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 with request headers
   ---
-- **`callback`**(*optional*) - result handler function, influences return value
+- **`callback`**(*optional*) - result handler [function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function)
+, influences return value
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
   - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 #### Returns
 [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
-[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback) or
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback)
+
+
+## Shorter syntax
+### `httpFetch(url[, callback(ok, res)])`
+### `httpFetch(url[, data[, callback(ok, res)]])`
+#### Parameters
+- **`url`** - same as `options.url`, [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+- **`data`** - same as `options.data`, [content](https://developer.mozilla.org/en-US/docs/Glossary/Type),
+  - when **not set** `options.method` will be `GET`
+  - when **set** `options.method` will be `POST`
+- **`callback`** - same as `callback`, [function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function)
+#### Returns
+The same
 
 
 ## Creating an instance
 ### `httpFetch.create(options)`
 ```javascript
+/**
+* This section is self-descriptive
+* This section is only for demonstration
+* This section may be safely skipped to the end
+*/
 var soFetch = httpFetch.create({
   ///
   // to shorten url parameter in future invocations,
@@ -125,9 +144,10 @@ var soFetch = httpFetch.create({
 });
 ```
 
-## Creating a request (invocation)
+
+## Sending a request
 ```
-soFetch({
+httpFetch({
   ///
   // ...
   //
@@ -138,7 +158,7 @@ soFetch({
 ### Default
 #### with async/await
 ```javascript
-var res = await soFetch.get('resource');
+var res = await httpFetch('resource');
 if (res instanceof Error)
 {
   // error
@@ -154,7 +174,7 @@ else
 ```
 #### with Promise
 ```javascript
-var promise = soFetch.get('resource')
+var promise = httpFetch('resource')
   .then(function(res) {
     if (res instanceof Error)
     {
@@ -172,7 +192,7 @@ var promise = soFetch.get('resource')
 ```
 #### with callback
 ```javascript
-var abortController = soFetch.get('resource', function(ok, res) {
+var aborter = httpFetch('resource', function(ok, res) {
   if (ok && res)
   {
     // success
@@ -190,10 +210,10 @@ var abortController = soFetch.get('resource', function(ok, res) {
 ### When `notNull` is true
 #### with async/await
 ```javascript
-var res = await soFetch.get('resource');
+var res = await soFetch('resource');
 if (res instanceof Error)
 {
-  // error
+  // error (+empty response error)
 }
 else
 {
@@ -202,14 +222,14 @@ else
 ```
 #### with callback
 ```javascript
-soFetch.get('resource', function(ok, res) {
+soFetch('resource', function(ok, res) {
   if (ok)
   {
     // success
   }
   else
   {
-    // error
+    // error (+empty response error)
   }
 });
 ```
@@ -241,11 +261,7 @@ soFetch.get('resource', function(ok, res) {
   - when response is empty and **`notNull`** is `true`
 
 
-## Shortcuts
-### method
-#### `httpFetch.post(url, data[, callback(ok, res)])`
-#### `httpFetch.get(url[, callback(ok, res)])`
-### content-type
+## Content-Type shortcuts
 #### `httpFetch.json`
 - `application/json` (the default)
 #### `httpFetch.form`
@@ -255,30 +271,37 @@ soFetch.get('resource', function(ok, res) {
 - `text/*`
 
 
-## Examples
+## KISS API
+Let's face it - `httpFetch` is a **client** oriented tool ([the browser](https://developer.mozilla.org/en-US/docs/Web/API)
+), so as a client, the questions order might be:
+
+(TODO: sheme)
+
+
+## Maybe
 ### Enforce result type
-### File upload
+### File uploads
 ### Cancellation
 ### Retry
 ### Encryption
 
 
-## Demos
-*While browsing demos, use F12 devtools console to see more details*.
+## Demo
+*check F12 devtools console, while browsing demos*.
 
-[Random quote fetcher](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html) ([codepen](https://codepen.io/determin1st/pen/PoYJmvJ?editors=0010))
+- [**random quote fetcher**](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html)
 
-[Authorizing at Google](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar
+- [**authorizing at Google**](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar
 
-[Authorizing at GitHub](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([CORS headers are BROKEN!](https://github.com/isaacs/github/issues/330))
+- [**authorizing at GitHub**](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([Their fault!](https://github.com/isaacs/github/issues/330))
 
-[Error handling](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
+- [**error handling**](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
 
-[Self cancellation](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
+- [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
 
-[Image upload](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
+- [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
 
-[Encryption](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): handshake and echo encrypted message (remote session + secret)
+- [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted message (remote session + secret), [FireFox only](https://en.wikipedia.org/wiki/Firefox)
 
 
 ## Install

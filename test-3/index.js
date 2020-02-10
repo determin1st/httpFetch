@@ -26,7 +26,7 @@ window.addEventListener('load', main = async function() {
         // #1: connection timeout
         // Remote API will delay for more than timeout is, so,
         // the request will be cancelled..
-        res = await myFetch.get('sleep/10');
+        res = await myFetch('sleep/10');
         if (res instanceof Error) {
             console.log('#1: '+res.message+': ok!');
         }
@@ -35,14 +35,14 @@ window.addEventListener('load', main = async function() {
         }
         /***/
         // #2: incorrect JSON responses
-        res = await myFetch.get('json/text');
+        res = await myFetch('json/text');
         if (res instanceof Error) {
             console.log('#2.1: '+res.message+': ok!');
         }
         else {
             console.log('#2.1: fail!');
         }
-        res = await myFetch.get('json/empty_string');
+        res = await myFetch('json/empty_string');
         if (res instanceof Error) {
             console.log('#2.2: '+res.message+': fail!');
         }
@@ -59,14 +59,14 @@ window.addEventListener('load', main = async function() {
         else {
             console.log('#2.3: fail!');
         }
-        res = await myFetch.get('json');
+        res = await myFetch('json');
         if (res instanceof Error) {
             console.log('#2.4: '+res.message+': fail!');
         }
         else {
             console.log('#2.4: ok!');
         }
-        res = await myFetch.get('json/incorrect');
+        res = await myFetch('json/incorrect');
         if (res instanceof Error) {
             console.log('#2.4: '+res.message+': ok!');
         }
@@ -79,7 +79,7 @@ window.addEventListener('load', main = async function() {
         // to the caller API when CORS fails..
         for (var s of [1,2,3,4,5])
         {
-            res = await myFetch.get('status/'+s);
+            res = await myFetch('status/'+s);
             if (res instanceof Error) {
                 console.log('#3.'+s+'xx:'+res.status+': '+res.message+': ok!');
             }

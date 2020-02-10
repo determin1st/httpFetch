@@ -415,6 +415,9 @@ httpFetch = function(){
     };
   }();
   FetchHandler = function(config){
+    /**
+    * WARNING: high level of code complexity
+    */
     var handler;
     handler = function(url, options, data, callback){
       var responseHandler, successHandler, errorHandler;
@@ -559,24 +562,60 @@ httpFetch = function(){
     };
     this.config = config;
     this.api = new Api(this);
-    this.fetch = function(options, callback){
-      var o, d, e, a, i$, ref$, len$, b, c;
+    this.fetch = function(options, data, callback){
+      var o, d, e, a, url, i$, ref$, len$, b, c;
       o = new FetchOptions();
       d = new FetchData(config);
       e = null;
-      if ((a = toString$.call(options).slice(8, -1)) !== 'Object') {
-        if (a === 'String') {
-          options = {
-            url: options
-          };
-        } else {
-          options = {};
-          e = new Error('incorrect options parameter');
+      if (a = arguments.length) {
+        switch (toString$.call(options).slice(8, -1)) {
+        case 'String':
+          switch (a) {
+          case 3:
+            options = {
+              url: options,
+              data: data,
+              method: 'POST'
+            };
+            break;
+          case 2:
+            if (typeof data === 'function') {
+              options = {
+                url: options,
+                method: 'GET'
+              };
+            } else {
+              options = {
+                url: options,
+                data: data,
+                method: 'POST'
+              };
+            }
+            break;
+          default:
+            options = {
+              url: options,
+              method: 'GET'
+            };
+          }
+          // fallthrough
+        case 'Object':
+          url = config.baseUrl ? config.baseUrl : '';
+          if (options.hasOwnProperty('url')) {
+            url = url + options.url;
+          }
+          if (data && typeof data !== 'function') {
+            data = false;
+            e = new Error('incorrect callback type');
+          }
+          callback = data;
+          data = options.hasOwnProperty('data') ? options.data : undefined;
+          break;
+        default:
+          e = new Error('incorrect options type, ' + a);
         }
-      }
-      if (callback && typeof callback !== 'function') {
-        callback = false;
-        e = new Error('incorrect callback parameter');
+      } else {
+        e = new Error('no parameters');
       }
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
@@ -609,18 +648,18 @@ httpFetch = function(){
           o.headers[b.toLowerCase()] = a[b];
         }
       }
-      if ((c = options.data) && !e) {
+      if (data !== undefined && !e) {
         a = o.headers['content-type'];
-        b = toString$.call(c).slice(8, -1);
-        if (config.secret) {
+        b = toString$.call(data).slice(8, -1);
+        if (c = config.secret) {
           o.headers['content-encoding'] = 'aes256gcm';
-          o.headers['etag'] = config.secret.next().tag();
+          o.headers['etag'] = c.next().tag();
           switch (0) {
           case a.indexOf('application/x-www-form-urlencoded'):
             o.headers['content-type'] = 'application/json';
             // fallthrough
           case a.indexOf('application/json'):
-            if (b !== 'String' && !(c = jsonEncode(c))) {
+            if (b !== 'String' && !(data = jsonEncode(data))) {
               e = new Error('failed to encode request data');
             }
             break;
@@ -632,23 +671,23 @@ httpFetch = function(){
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              e = new Error('incorrect request data');
+              e = new Error('incorrect data type');
             }
           }
         } else {
           switch (0) {
           case a.indexOf('application/json'):
-            if (b !== 'String' && (c = jsonEncode(c)) === null) {
+            if (b !== 'String' && !(data = jsonEncode(data))) {
               e = new Error('failed to encode request data');
             }
             break;
           case a.indexOf('application/x-www-form-urlencoded'):
-            if ((b !== 'String' && b !== 'URLSearchParams') && !(c = newQueryString(c))) {
+            if ((b !== 'String' && b !== 'URLSearchParams') && !(data = newQueryString(data))) {
               e = new Error('failed to encode request data');
             }
             break;
           case a.indexOf('multipart/form-data'):
-            if ((b !== 'String' && b !== 'FormData') && !(c = newFormData(c))) {
+            if ((b !== 'String' && b !== 'FormData') && !(data = newFormData(data))) {
               e = new Error('failed to encode request data');
             }
             if (b !== 'String') {
@@ -657,11 +696,11 @@ httpFetch = function(){
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              e = new Error('incorrect request data');
+              e = new Error('incorrect data type');
             }
           }
         }
-        o.body = d.response.request.data = c;
+        o.body = d.response.request.data = data;
       } else {
         delete o.headers['content-type'];
       }
@@ -703,17 +742,15 @@ httpFetch = function(){
           return d.promise;
         }
       }
-      a = options.url
-        ? config.baseUrl + options.url
-        : config.baseUrl;
-      if (b = config.secret) {
-        c = b.encrypt(o.body, true);
-        c.data.then(function(e){
-          o.body = c.data = e;
-          d.response.request.crypto = c;
-          if (!o.signal.aborted) {
-            handler(a, o, d, callback);
+      if (config.secret) {
+        data = config.secret.encrypt(o.body, true);
+        data.data.then(function(e){
+          o.body = data.data = e;
+          d.response.request.crypto = data;
+          if (o.signal.aborted) {
+            throw new Error('aborted programmatically, forgot to encrypt');
           }
+          handler(url, o, d, callback);
         })['catch'](function(e){
           if (callback) {
             callback(false, e);
@@ -727,7 +764,7 @@ httpFetch = function(){
           }
         });
       } else {
-        handler(a, o, d, callback);
+        handler(url, o, d, callback);
       }
       return callback
         ? d.aborter
@@ -737,23 +774,6 @@ httpFetch = function(){
   Api = function(handler){
     var handshakeLocked;
     this.create = newInstance(handler.config);
-    this.post = function(url, data, callback){
-      var o;
-      o = {
-        url: url,
-        method: 'POST',
-        data: data ? data : ''
-      };
-      return handler.fetch(o, callback);
-    };
-    this.get = function(url, callback){
-      var o;
-      o = {
-        url: url,
-        method: 'GET'
-      };
-      return handler.fetch(o, callback);
-    };
     if (!apiCrypto) {
       return;
     }

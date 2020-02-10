@@ -6,7 +6,7 @@ window.addEventListener('load', function() {
     var h4 = document.querySelector('h4');
     document.querySelector('button').addEventListener('click', test = function(e) {
         ////
-        httpFetch.get('https://api.quotable.io/random', function(ok, res) {
+        httpFetch('https://api.quotable.io/random', function(ok, res) {
             if (ok)
             {
                 // set quote..

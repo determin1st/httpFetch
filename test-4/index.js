@@ -81,7 +81,7 @@ window.addEventListener('load', function() {
         h1.innerText = 'getting user e-mail..';
         b3.disabled = true;
         // send request
-        httpFetch.get('https://api.github.com/user/emails', function(ok, res) {
+        httpFetch('https://api.github.com/user/emails', function(ok, res) {
             if (ok && res)
             {
                 if (res.length) {

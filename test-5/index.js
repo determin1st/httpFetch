@@ -20,7 +20,7 @@ window.addEventListener('load', main = async function() {
         }
         // make a new request
         console.log('BEGIN');
-        data = await (promise = myFetch.get('sleep/10'));
+        data = await (promise = myFetch('sleep/10'));
         // check result
         if (data instanceof Error) {
             console.log('ERROR: '+data.message);
