@@ -577,6 +577,7 @@ httpFetch = function(){
               data: data,
               method: 'POST'
             };
+            data = callback;
             break;
           case 2:
             if (typeof data === 'function') {
@@ -590,6 +591,7 @@ httpFetch = function(){
                 data: data,
                 method: 'POST'
               };
+              data = false;
             }
             break;
           default:

@@ -624,7 +624,7 @@ httpFetch = do ->
 			o = new FetchOptions!
 			d = new FetchData config
 			e = null
-			# TODO: parse arguments
+			# parse arguments
 			if (a = arguments.length)
 				# check what syntax is used
 				switch typeof! options
@@ -638,6 +638,7 @@ httpFetch = do ->
 							data: data
 							method: 'POST'
 						}
+						data = callback
 					case 2
 						if typeof data == 'function'
 							options = {
@@ -645,13 +646,14 @@ httpFetch = do ->
 								method: 'GET'
 							}
 						else
-							# this case allow to use undefined as a data,
+							# this case allows to use undefined as an argument,
 							# the request will be sent as POST with empty body
 							options = {
 								url: options
 								data: data
 								method: 'POST'
 							}
+							data = false
 					default
 						options = {
 							url: options
