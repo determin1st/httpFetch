@@ -383,6 +383,7 @@ httpFetch = function(){
       };
       return ResponseData = function(){
         this.status = 0;
+        this.type = null;
         this.headers = null;
         this.data = null;
         this.crypto = null;
@@ -415,12 +416,11 @@ httpFetch = function(){
     };
   }();
   FetchHandler = function(config){
-    /**
-    * WARNING: high level of code complexity
-    */
     var handler;
     handler = function(url, options, data, callback){
-      var responseHandler, successHandler, errorHandler;
+      var res, sec, responseHandler, decryptHandler, successHandler, errorHandler;
+      res = data.response;
+      sec = config.secret;
       responseHandler = function(r){
         var h, a, b;
         if (data.timer) {
@@ -430,17 +430,19 @@ httpFetch = function(){
         if (!r.ok || (r.status !== 200 && data.status200)) {
           throw new FetchError(r.statusText, r.status);
         }
-        h = {};
+        res.status = r.status;
+        res.headers = h = {};
         a = r.headers.entries();
         while (!(b = a.next()).done) {
           h[b.value[0].toLowerCase()] = b.value[1];
         }
-        data.response.status = r.status;
-        data.response.headers = h;
-        if ((a = h['content-encoding']) === 'aes256gcm') {
-          if (!config.secret) {
-            throw new FetchError('unable to decrypt, no shared secret', r.status);
+        if ((res.type = r.type) === 'opaque') {
+          if (sec) {
+            throw new FetchError('encrypted opaque response', r.status);
           }
+          return r;
+        }
+        if (sec) {
           return r.arrayBuffer();
         }
         a = options.headers.accept || h['content-type'] || '';
@@ -461,48 +463,48 @@ httpFetch = function(){
           return r.arrayBuffer();
         }
       };
-      successHandler = async function(d){
-        var res, sec, a, b;
-        res = data.response;
-        sec = config.secret;
-        if (sec) {
-          if (d && res.headers['content-encoding'] === 'aes256gcm') {
-            a = sec.decrypt(d, res.request.crypto.params);
-            if ((b = (await a.data)) === null) {
-              sec.manager('error');
-              throw new FetchError('failed to decrypt the response', res.status);
-            }
-            a.data = d;
-            res.crypto = a;
-            sec.save();
-            a = options.headers.accept || res.headers['content-type'] || '';
-            switch (0) {
-            case a.indexOf('application/json'):
-              d = jsonDecode(b);
-              break;
-            case a.indexOf('text/'):
-              d = textDecode(b);
-              break;
-            default:
-              d = b;
-            }
-          } else {
-            sec.save();
-          }
+      sec && (decryptHandler = function(buf){
+        var a;
+        if (buf.byteLength === 0) {
+          return null;
         }
+        a = sec.decrypt(buf, res.request.crypto.params);
+        return a.data.then(function(d){
+          var c;
+          if ((a.data = d) === null) {
+            sec.manager('fail');
+            throw new FetchError('failed to decrypt the response', res.status);
+          }
+          res.crypto = a;
+          sec.save();
+          c = options.headers.accept || res.headers['content-type'] || '';
+          switch (0) {
+          case c.indexOf('application/json'):
+            c = jsonDecode(d);
+            break;
+          case c.indexOf('text/'):
+            c = textDecode(d);
+            break;
+          default:
+            c = d;
+          }
+          return c;
+        });
+      });
+      successHandler = function(d){
+        var a;
         if (data.notNull && ((a = toString$.call(d).slice(8, -1)) === 'Null' || a === 'Blob' && a.size === 0 || a === 'ArrayBuffer' && a.byteLength === 0)) {
           throw new FetchError('empty response', res.status);
         }
         if (data.fullHouse) {
           res.data = d;
-        } else {
-          res = d;
+          d = res;
         }
         if (callback) {
-          callback(true, res);
+          callback(true, d);
         } else {
           data.promise.pending = false;
-          data.promise.resolve(res);
+          data.promise.resolve(d);
         }
       };
       errorHandler = function(e){
@@ -558,7 +560,11 @@ httpFetch = function(){
       if (data.timeout) {
         data.timer = setTimeout(data.timerFunc, data.timeout);
       }
-      fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+      if (sec) {
+        fetch(url, options).then(responseHandler).then(decryptHandler).then(successHandler)['catch'](errorHandler);
+      } else {
+        fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+      }
     };
     this.config = config;
     this.api = new Api(this);

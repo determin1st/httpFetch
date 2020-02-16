@@ -413,6 +413,7 @@ httpFetch = do ->
 				@crypto  = null
 			return ResponseData = !->
 				@status  = 0
+				@type    = null
 				@headers = null
 				@data    = null
 				@crypto  = null
@@ -442,10 +443,10 @@ httpFetch = do ->
 			@timeout       = 1000 * config.timeout
 	# }}}
 	FetchHandler = (config) !-> # {{{
-		/**
-		* WARNING: high level of code complexity
-		*/
 		handler = (url, options, data, callback) !-> # {{{
+			# prepare
+			res = data.response
+			sec = config.secret
 			responseHandler = (r) -> # {{{
 				# terminate timer
 				if data.timer
@@ -456,24 +457,28 @@ httpFetch = do ->
 				# modern API may limit it to 200 (this option is on by default)
 				if not r.ok or (r.status != 200 and data.status200)
 					throw new FetchError r.statusText, r.status
-				# parse headers
-				h = {}
+				# set status
+				res.status = r.status
+				# set headers
+				res.headers = h = {}
 				a = r.headers.entries!
 				while not (b = a.next!).done
 					h[b.value.0.toLowerCase!] = b.value.1
-				# store
-				data.response.status  = r.status
-				data.response.headers = h
-				# check encoding
-				if (a = h['content-encoding']) == 'aes256gcm'
-					# ENCRYPTED!
-					# secret key must exist
-					if not config.secret
-						throw new FetchError 'unable to decrypt, no shared secret', r.status
-					# encrypted content is always sent as binary
+				# set type and
+				# check opaque
+				if (res.type = r.type) == 'opaque'
+					# check encrypted
+					if sec
+						# can't access data === can't decrypt it
+						throw new FetchError 'encrypted opaque response', r.status
+					# return as is,
+					# the opaque Response object may be consumed by other APIs
+					return r
+				# encrypted request means encrypted response and
+				# content is always treated as binary
+				if sec
 					return r.arrayBuffer!
 				###
-				# NOT ENCRYPTED!
 				# determine content type (own setting is preferred)
 				a = options.headers.accept or h['content-type'] or ''
 				# parse content
@@ -500,41 +505,38 @@ httpFetch = do ->
 					# assume binary
 					return r.arrayBuffer!
 			# }}}
-			successHandler = (d) !->> # {{{
-				# prepare
-				res = data.response
-				sec = config.secret
-				# check if encryption enabled
-				if sec
-					# check if the response encrypted
-					if d and res.headers['content-encoding'] == 'aes256gcm'
-						# start decryption
-						a = sec.decrypt d, res.request.crypto.params
-						# wait completed
-						if (b = await a.data) == null
-							sec.manager 'error'
-							throw new FetchError 'failed to decrypt the response', res.status
-						# store original data
-						a.data = d
-						res.crypto = a
-						# update secret
-						sec.save!
-						# determine content type (own setting is preferred)
-						a = options.headers.accept or res.headers['content-type'] or ''
-						# parse response
-						switch 0
-						case a.indexOf 'application/json'
-							# Object
-							d = jsonDecode b
-						case a.indexOf 'text/'
-							# String
-							d = textDecode b
-						default
-							# Binary
-							d = b
-					else
-						# update secret anyway
-						sec.save!
+			sec and decryptHandler = (buf) -> # {{{
+				# check for empty response
+				if buf.byteLength == 0
+					return null
+				# start decryption
+				a = sec.decrypt buf, res.request.crypto.params
+				# wait
+				return a.data.then (d) ->
+					# check decrypted data
+					if (a.data = d) == null
+						sec.manager 'fail'
+						throw new FetchError 'failed to decrypt the response', res.status
+					# store
+					res.crypto = a
+					# update secret
+					sec.save!
+					# parse content
+					c = options.headers.accept or res.headers['content-type'] or ''
+					switch 0
+					case c.indexOf 'application/json'
+						# Object
+						c = jsonDecode d
+					case c.indexOf 'text/'
+						# String
+						c = textDecode d
+					default
+						# Binary, as is
+						c = d
+					# done
+					return c
+			# }}}
+			successHandler = (d) !-> # {{{
 				# check for empty response
 				if data.notNull and \
 				   ((a = typeof! d) == 'Null' or \
@@ -545,14 +547,13 @@ httpFetch = do ->
 				# prepare result
 				if data.fullHouse
 					res.data = d
-				else
-					res = d
+					d = res
 				# return it through callback or promise
 				if callback
-					callback true, res
+					callback true, d
 				else
 					data.promise.pending = false
-					data.promise.resolve res
+					data.promise.resolve d
 			# }}}
 			errorHandler = (e) !-> # {{{
 				# terminate timer
@@ -609,10 +610,17 @@ httpFetch = do ->
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
 			# call the api
-			fetch url, options
-				.then responseHandler
-				.then successHandler
-				.catch errorHandler
+			if sec
+				fetch url, options
+					.then responseHandler
+					.then decryptHandler
+					.then successHandler
+					.catch errorHandler
+			else
+				fetch url, options
+					.then responseHandler
+					.then successHandler
+					.catch errorHandler
 		# }}}
 		# create object shape
 		@config = config
@@ -833,7 +841,7 @@ httpFetch = do ->
 			# RUN HANDLER
 			# check secret
 			if config.secret
-				# start request encryption
+				# start encryption
 				data = config.secret.encrypt o.body, true
 				# wait completed
 				data.data.then (e) !->
