@@ -474,8 +474,8 @@ httpFetch = do ->
 					# return as is,
 					# the opaque Response object may be consumed by other APIs
 					return r
-				# encrypted request means encrypted response and
-				# content is always treated as binary
+				# encrypted request enforce encrypted response and
+				# content is handled as binary..
 				if sec
 					return r.arrayBuffer!
 				###
@@ -516,7 +516,7 @@ httpFetch = do ->
 					# check decrypted data
 					if (a.data = d) == null
 						sec.manager 'fail'
-						throw new FetchError 'failed to decrypt the response', res.status
+						throw new FetchError 'failed to decrypt', res.status
 					# store
 					res.crypto = a
 					# update secret
@@ -609,7 +609,7 @@ httpFetch = do ->
 			# set timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
-			# call the api
+			# invoke the Fetch API
 			if sec
 				fetch url, options
 					.then responseHandler
@@ -795,8 +795,8 @@ httpFetch = do ->
 			# }}}
 			# request controllers {{{
 			# set aborter
-			d.aborter = if options.aborter
-				then options.aborter
+			d.aborter = if (a = options.aborter) and a instanceof AbortController
+				then a
 				else new AbortController!
 			# set abort signal
 			o.signal = d.aborter.signal
@@ -874,12 +874,12 @@ httpFetch = do ->
 	# }}}
 	Api = (handler) !-> # {{{
 		###
-		# instance constructor
+		# instance parent
 		@create = newInstance handler.config
 		###
-		# content-type shortcuts(?)
+		# content-type shortcuts (TODO: how?!)
 		###
-		# cryptography section
+		# crypto section
 		if not apiCrypto
 			return
 		handshakeLocked = false

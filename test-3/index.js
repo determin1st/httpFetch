@@ -8,11 +8,12 @@ window.addEventListener('load', main = async function() {
     var state   = false;
     var myFetch = httpFetch.create({
         baseUrl: 'http://46.4.19.13:30980/api/test/',
+        //baseUrl: 'http://localhost/api/test/',
         timeout: 5
     });
     // set event handler
     button.addEventListener('click', async function(e) {
-        var res;
+        var a,b, res;
         ////
         // to prevent simultaneous requests,
         // let's check current state
@@ -33,7 +34,6 @@ window.addEventListener('load', main = async function() {
         else {
             console.log('#1: fail!');
         }
-        /***/
         // #2: incorrect JSON responses
         res = await myFetch('json/text');
         if (res instanceof Error) {
@@ -73,7 +73,6 @@ window.addEventListener('load', main = async function() {
         else {
             console.log('#2.4: fail!');
         }
-        /***/
         // #3: Random http statuses (except 200=OK)
         // Unfortunately, Chrome/Firefox, both are unable to bring some statuses
         // to the caller API when CORS fails..
@@ -86,6 +85,59 @@ window.addEventListener('load', main = async function() {
             else {
                 console.log('#3.'+s+'xx: fail!');
             }
+        }
+        a = '#4, GET method with BODY: '
+        b = await myFetch({
+            url: 'echo',
+            method: 'GET',
+            headers: {
+                'content-type': 'text/plain'
+            },
+            data: 'GET with BODY!'
+        });
+        if (b instanceof Error) {
+            console.log(a+b.message+': fail!');
+        }
+        else {
+            console.log(a+b+': ok!');
+        }
+        a = '#5, POST method without BODY: ';
+        b = await myFetch({
+            url: 'echo',
+            method: 'POST'
+        });
+        if (b instanceof Error) {
+            console.log(a+b.message+': fail!');
+        }
+        else {
+            console.log(a+b+': ok!');
+        }
+        a = '#6, POST method with NULL: ';
+        b = await myFetch({
+            url: 'echo',
+            method: 'POST',
+            data: null
+        });
+        if (b instanceof Error) {
+            console.log(a+b.message+': fail!');
+        }
+        else {
+            console.log(a+b+': ok!');
+        }
+        /***
+        a = '#7, ...: ';
+        b = await httpFetch({
+            //url: 'https://wpdemo.gatsbycentral.com/wp-json',
+            url: 'https://engineersf.com/wp-json',
+            method: 'GET'
+        });
+        if (b instanceof Error)
+        {
+            console.log(a+b.message+': fail!');
+        }
+        else
+        {
+            console.log(a+b+': ok!');
         }
         /***/
         // unlock

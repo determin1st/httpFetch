@@ -49,6 +49,24 @@ window.addEventListener('load', main = async function() {
         btn.disabled = false; // enable button
     });
     /*CODE*/
+    /*
+    function uploadImageToImgur(blob) {
+    var formData = new FormData();
+    formData.append('type', 'file');
+    formData.append('image', blob);
+
+    return fetch('https://api.imgur.com/3/upload.json', {
+        method: 'POST',
+        headers: {
+        Accept: 'application/json',
+        Authorization: 'Client-ID dc708f3823b7756'// imgur specific
+        },
+        body: formData
+    })
+        .then(processStatus)
+        .then(parseJson);
+    }
+    /***/
     ////
     // get source code
     var a,b,c;

@@ -473,7 +473,7 @@ httpFetch = function(){
           var c;
           if ((a.data = d) === null) {
             sec.manager('fail');
-            throw new FetchError('failed to decrypt the response', res.status);
+            throw new FetchError('failed to decrypt', res.status);
           }
           res.crypto = a;
           sec.save();
@@ -712,8 +712,8 @@ httpFetch = function(){
       } else {
         delete o.headers['content-type'];
       }
-      d.aborter = options.aborter
-        ? options.aborter
+      d.aborter = (a = options.aborter) && a instanceof AbortController
+        ? a
         : new AbortController();
       o.signal = d.aborter.signal;
       if (!callback) {

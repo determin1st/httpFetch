@@ -7,15 +7,20 @@ use Mdanter\Ecc\Serializer\PublicKey\DerPublicKeySerializer;
 use Mdanter\Ecc\Serializer\PublicKey\PemPublicKeySerializer;
 use Mdanter\Ecc\Util\NumberSize;
 ###
-class HttpCrypto {
-  ###
-  private static $me = null, $secret = null, $options = null;
-  private $keyPrivate, $keyPublic, $keySecret;
-  private $counter = null;
-  public $error = '';
-  public $encrypted = false;
-  public $rotten = false;
-  ###
+class HttpFetch {
+  # data
+  # {{{
+  private static
+    $me      = null,
+    $secret  = null,
+    $options = null;
+  private
+    $keyPrivate, $keyPublic, $keySecret, $counter = null;
+  public
+    $error     = '',
+    $encrypted = false,
+    $rotten    = false;
+  # }}}
   # singleton constructor pattern
   public static function setOptions(&$secret, $o = []) # {{{
   {
@@ -47,7 +52,7 @@ class HttpCrypto {
     }
     # construct once
     if (self::$me === null) {
-      self::$me = new HttpCrypto();
+      self::$me = new HttpFetch();
     }
     # done
     return self::$me;

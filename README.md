@@ -155,7 +155,7 @@ httpFetch({
 ```
 
 ## Handling the result
-### Default
+### Positive by default
 #### with async/await
 ```javascript
 var res = await httpFetch('resource');
@@ -182,7 +182,7 @@ var promise = httpFetch('resource')
     }
     else if (!res)
     {
-      // empty response
+      // empty response or JSON falsy values
     }
     else
     {
@@ -199,7 +199,7 @@ var aborter = httpFetch('resource', function(ok, res) {
   }
   else if (!res)
   {
-    // empty response
+    // empty response or JSON falsy values
   }
   else
   {
@@ -207,17 +207,17 @@ var aborter = httpFetch('resource', function(ok, res) {
   }
 });
 ```
-### When `notNull` is true
+### Positive, when `notNull` is true
 #### with async/await
 ```javascript
 var res = await soFetch('resource');
 if (res instanceof Error)
 {
-  // error (+empty response error)
+  // error (+empty response, +JSON NULL)
 }
 else
 {
-  // success
+  // success (+JSON falsy values except NULL)
 }
 ```
 #### with callback
@@ -225,13 +225,50 @@ else
 soFetch('resource', function(ok, res) {
   if (ok)
   {
+    // success (+JSON falsy values except NULL)
+  }
+  else
+  {
+    // error (+empty response, +JSON NULL)
+  }
+});
+```
+### Positive or Negative, when `promiseReject` is true
+#### with Promise
+```javascript
+var promise = httpFetch('resource')
+  .then(function(res) {
+    if (res)
+    {
+      // success
+    }
+    else
+    {
+      // empty response or JSON falsy values
+    }
+  })
+  .catch(function(err) {
+    // error
+  });
+```
+#### with async/await
+```javascript
+try
+{
+  var res = await soFetch('resource');
+  if (res)
+  {
     // success
   }
   else
   {
-    // error (+empty response error)
+    // empty response or JSON falsy values
   }
-});
+}
+catch (err)
+{
+  // error
+}
 ```
 
 
@@ -272,10 +309,24 @@ soFetch('resource', function(ok, res) {
 
 
 ## KISS API
-Let's face it - `httpFetch` is a **client** oriented tool ([the browser](https://developer.mozilla.org/en-US/docs/Web/API)
-), so as a client, the questions order might be:
+Always use POST method. (Keep It Simple Stupid)
+```javascript
+// instead of GET method,
+// do:
+res = await httpFetch(url, undefined);
 
-(TODO: sheme)
+// if you need to send JSON NULL (why?),
+// do:
+res = await httpFetch(url, null);
+
+// instead of multiple notations,
+// like:
+res = await httpFetch(url+'?more=params', params);
+// or:
+res = await httpFetch(url+'/more/params', params);
+// do:
+res = await httpFetch(url, Object.assign(params, {more: "params"}));
+```
 
 
 ## Maybe

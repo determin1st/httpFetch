@@ -9,6 +9,7 @@ window.addEventListener('load', main = async function() {
         // for the future requests,
         // setting this option is a convenient way to reduce url:
         baseUrl: 'http://46.4.19.13:30980/api/test/',
+        //baseUrl: 'https://alias.local/api/test/',
         // to display detailed information about request and response data,
         // the following option must be enabled:
         fullHouse: true,
@@ -45,7 +46,7 @@ window.addEventListener('load', main = async function() {
                 break;
             case 'destroy':
                 ///
-                // when something goes wrong and the secret should be destroyed,
+                // when something goes wrong or the secret should be destroyed,
                 // this operation erases it from the storage of choice.
                 ///
                 window.localStorage.removeItem('mySecret');
@@ -129,17 +130,15 @@ window.addEventListener('load', main = async function() {
         tArea[3].value = '';
         // send message
         a = await myFetch({
-            url: 'echo',
+            url: 'crypto-echo',
             headers: {'content-type': 'text/plain'},
             data: tArea[0].value
         });
         // display results
-        if (a instanceof Error)
-        {
+        if (a instanceof Error) {
             console.log(a);
         }
-        else if (!a)
-        {
+        else if (!a) {
             console.log('empty response');
         }
         else
