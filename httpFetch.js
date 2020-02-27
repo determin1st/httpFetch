@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
   api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
@@ -284,6 +284,57 @@ httpFetch = function(){
       }()
     };
   }();
+  parseArguments = function(a){
+    if (!a.length) {
+      return new Error('no parameters');
+    }
+    switch (toString$.call(a[0]).slice(8, -1)) {
+    case 'String':
+      switch (a.length) {
+      case 3:
+        a[0] = {
+          url: a[0],
+          data: a[1],
+          method: 'POST'
+        };
+        a[1] = a[2];
+        break;
+      case 2:
+        if (typeof a[1] === 'function') {
+          a[0] = {
+            url: a[0],
+            method: 'GET'
+          };
+        } else {
+          a[0] = {
+            url: a[0],
+            data: a[1],
+            method: 'POST'
+          };
+          a[1] = false;
+        }
+        break;
+      default:
+        a[0] = {
+          url: a[0],
+          method: 'GET'
+        };
+        a[1] = false;
+      }
+      // fallthrough
+    case 'Object':
+      if (a[0].url && typeof a[0].url !== 'string') {
+        return new Error('wrong url type');
+      }
+      if (a[1] && typeof a[1] !== 'function') {
+        return new Error('wrong callback type');
+      }
+      break;
+    default:
+      return new Error('incorrect arguments syntax');
+    }
+    return a;
+  };
   FetchConfig = function(){
     this.baseUrl = '';
     this.mode = null;
@@ -568,62 +619,23 @@ httpFetch = function(){
     };
     this.config = config;
     this.api = new Api(this);
-    this.fetch = function(options, data, callback){
-      var o, d, e, a, url, i$, ref$, len$, b, c;
+    this.fetch = function(){
+      var o, d, e, options, callback, url, data, a, i$, ref$, len$, b, c;
       o = new FetchOptions();
       d = new FetchData(config);
-      e = null;
-      if (a = arguments.length) {
-        switch (toString$.call(options).slice(8, -1)) {
-        case 'String':
-          switch (a) {
-          case 3:
-            options = {
-              url: options,
-              data: data,
-              method: 'POST'
-            };
-            data = callback;
-            break;
-          case 2:
-            if (typeof data === 'function') {
-              options = {
-                url: options,
-                method: 'GET'
-              };
-            } else {
-              options = {
-                url: options,
-                data: data,
-                method: 'POST'
-              };
-              data = false;
-            }
-            break;
-          default:
-            options = {
-              url: options,
-              method: 'GET'
-            };
-          }
-          // fallthrough
-        case 'Object':
-          url = config.baseUrl ? config.baseUrl : '';
-          if (options.hasOwnProperty('url')) {
-            url = url + options.url;
-          }
-          if (data && typeof data !== 'function') {
-            data = false;
-            e = new Error('incorrect callback type');
-          }
-          callback = data;
-          data = options.hasOwnProperty('data') ? options.data : undefined;
-          break;
-        default:
-          e = new Error('incorrect options type, ' + a);
-        }
+      if ((e = parseArguments(arguments)) instanceof Error) {
+        options = {};
+        callback = false;
       } else {
-        e = new Error('no parameters');
+        options = e[0];
+        callback = e[1];
+        e = false;
+      }
+      url = options.hasOwnProperty('url')
+        ? config.baseUrl + options.url
+        : config.baseUrl;
+      if (options.hasOwnProperty('data')) {
+        data = options.data;
       }
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
@@ -644,7 +656,7 @@ httpFetch = function(){
       }
       if (options.hasOwnProperty('method')) {
         o.method = options.method;
-      } else if (options.data) {
+      } else if (options.hasOwnProperty('data')) {
         o.method = 'POST';
       }
       if (config.headers) {
@@ -756,7 +768,7 @@ httpFetch = function(){
           o.body = data.data = e;
           d.response.request.crypto = data;
           if (o.signal.aborted) {
-            throw new Error('aborted programmatically, forgot to encrypt');
+            throw new Error('aborted programmatically');
           }
           handler(url, o, d, callback);
         })['catch'](function(e){
@@ -779,9 +791,40 @@ httpFetch = function(){
         : d.promise;
     };
   };
+  FetchHandler.prototype = {};
   Api = function(handler){
     var handshakeLocked;
     this.create = newInstance(handler.config);
+    this.json = function(){
+      var a, b;
+      if ((a = parseArguments(arguments)) instanceof Error) {
+        return handler.fetch(a);
+      }
+      b = {
+        'content-type': 'application/json;charset=utf-8'
+      };
+      if (a[0].headers) {
+        import$(a[0].headers, b);
+      } else {
+        a[0].headers = b;
+      }
+      return handler.fetch(a[0], a[1]);
+    };
+    this.text = function(){
+      var a, b;
+      if ((a = parseArguments(arguments)) instanceof Error) {
+        return handler.fetch(a);
+      }
+      b = {
+        'content-type': 'text/plain;charset=utf-8'
+      };
+      if (a[0].headers) {
+        import$(a[0].headers, b);
+      } else {
+        a[0].headers = b;
+      }
+      return handler.fetch(a[0], a[1]);
+    };
     if (!apiCrypto) {
       return;
     }
@@ -879,6 +922,8 @@ httpFetch = function(){
       switch (key) {
       case 'secret':
         return !!handler.config.secret;
+      case 'prototype':
+        return FetchHandler.prototype;
       default:
         if (handler.config.hasOwnProperty(key)) {
           return handler.config[key];
@@ -892,7 +937,7 @@ httpFetch = function(){
     this.set = function(f, key, val){
       if (handler.config.hasOwnProperty(key)) {
         switch (key) {
-        case 'baseURL':
+        case 'baseUrl':
           if (typeof val === 'string') {
             handler.config[key] = val;
           }
@@ -910,6 +955,14 @@ httpFetch = function(){
       }
       return true;
     };
+  };
+  ApiHandler.prototype = {
+    setPrototypeOf: function(){
+      return false;
+    },
+    getPrototypeOf: function(){
+      return FetchHandler.prototype;
+    }
   };
   newFormData = function(){
     var add;

@@ -54,11 +54,11 @@ with request headers
   - **`ok`** - boolean, indicates the request state (influenced by **`status200`** config)
   - **`res`** - server response object (influenced by **`notNull`** config) or [`Error`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error) object
 #### Returns
-[`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (no callback) or
-[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (with callback)
+[`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (not callback) or
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback)
 
 
-## Shorter syntax
+## Short syntax
 ### `httpFetch(url[, callback(ok, res)])`
 ### `httpFetch(url[, data[, callback(ok, res)]])`
 #### Parameters
@@ -71,13 +71,17 @@ with request headers
 The same
 
 
-## Creating an instance
-### `httpFetch.create(options)`
+## New instance syntax
+### `httpFetch.create(config)`
+#### Parameters
+- **`config`** - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+#### Returns
+new [`httpFetch`](https://github.com/determin1st/httpFetch)
+instance
+#### Example
 ```javascript
 /**
-* This section is self-descriptive
-* This section is only for demonstration
-* This section may be safely skipped to the end
+* This section may be safely skipped
 */
 var soFetch = httpFetch.create({
   ///
@@ -142,6 +146,11 @@ var soFetch = httpFetch.create({
     authorization: accessToken
   }
 });
+
+// check it
+if (soFetch instanceof httpFetch) {
+  // true!
+}
 ```
 
 
@@ -300,32 +309,53 @@ catch (err)
 
 ## Content-Type shortcuts
 #### `httpFetch.json`
-- `application/json` (the default)
+- `application/json` (**the default**)
+#### `httpFetch.text`
+- `text/plain`
 #### `httpFetch.form`
 - `multipart/form-data`
 - `application/x-www-form-urlencoded`
-#### `httpFetch.text`
-- `text/*`
+```javascript
+```
 
 
 ## KISS API
 Always use POST method. (Keep It Simple Stupid)
 ```javascript
 // instead of GET method,
-// do:
-res = await httpFetch(url, undefined);
+// you may POST:
+res = await httpFetch(url, {});       // EMPTY OBJECT
+res = await httpFetch(url, undefined);// EMPTY BODY
+res = await httpFetch(url, null);     // JSON NULL
+// it may easily expand to
+// list filters:
+res = await httpFetch(url, {
+  categories: ['one', 'two'],
+  flag: true
+});
+// item extras:
+res = await httpFetch(url, {
+  fullDescription: true,
+  ownerInfo: true
+});
+// otherwise,
+// parametrized GET will quickly swamp into:
+res = await httpFetch(url+'?flags=123&names=one,two&isPulluted=true');
 
-// if you need to send JSON NULL (why?),
-// do:
-res = await httpFetch(url, null);
-
-// instead of multiple notations,
-// like:
+// DO NOT use multiple/mixed notations:
 res = await httpFetch(url+'?more=params', params);
-// or:
 res = await httpFetch(url+'/more/params', params);
-// do:
+// DO unified:
 res = await httpFetch(url, Object.assign(params, {more: "params"}));
+
+// by default, any HTTP status is considered error,
+// except HTTP 200 OK:
+if (res instanceof Error) {
+  console.log(res.status);// not 200
+}
+else {
+  console.log(res.status);// always 200
+}
 ```
 
 

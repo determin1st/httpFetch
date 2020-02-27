@@ -126,13 +126,8 @@ window.addEventListener('load', main = async function() {
         }
         /***
         a = '#7, ...: ';
-        b = await httpFetch({
-            //url: 'https://wpdemo.gatsbycentral.com/wp-json',
-            url: 'https://engineersf.com/wp-json',
-            method: 'GET'
-        });
-        if (b instanceof Error)
-        {
+        b = await myFetch.text('echo', '');
+        if (b instanceof Error) {
             console.log(a+b.message+': fail!');
         }
         else

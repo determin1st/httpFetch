@@ -314,6 +314,63 @@ httpFetch = do ->
 			# }}}
 		}
 	# }}}
+	parseArguments = (a) -> # {{{
+		# check count
+		if not a.length
+			return new Error 'no parameters'
+		# check what syntax is used
+		switch typeof! a.0
+		case 'String'
+			# Short syntax,
+			# create options object for the lazy user
+			switch a.length
+			case 3
+				# [url,data,callback]
+				a.0 = {
+					url:  a.0
+					data: a.1
+					method: 'POST'
+				}
+				a.1 = a.2
+			case 2
+				# [url,data/callback]
+				if typeof a.1 == 'function'
+					a.0 = {
+						url: a.0
+						method: 'GET'
+					}
+				else
+					# this case allows to use undefined as an argument,
+					# the request will be sent as POST with empty body
+					a.0 = {
+						url:  a.0
+						data: a.1
+						method: 'POST'
+					}
+					a.1 = false
+			default
+				# [url]
+				a.0 = {
+					url: a.0
+					method: 'GET'
+				}
+				a.1 = false
+			# continue the fall
+			fallthrough
+		case 'Object'
+			# Default syntax: [options,callback]
+			# check url
+			if a.0.url and typeof a.0.url != 'string'
+				return new Error 'wrong url type'
+			# check callback
+			if a.1 and (typeof a.1 != 'function')
+				return new Error 'wrong callback type'
+		default
+			# Incorrect syntax
+			return new Error 'incorrect arguments syntax'
+		# done
+		return a
+	# }}}
 	# constructors
 	FetchConfig = !-> # {{{
 		@baseUrl        = ''
@@ -624,75 +681,31 @@ httpFetch = do ->
 		# }}}
 		# create object shape
 		@config = config
-		@api = new Api @
-		@fetch = (options, data, callback) ->
+		@api    = new Api @
+		@fetch  = ->
 			# PREPARE BASE
 			# {{{
 			# create important objects
 			o = new FetchOptions!
 			d = new FetchData config
-			e = null
 			# parse arguments
-			if (a = arguments.length)
-				# check what syntax is used
-				switch typeof! options
-				case 'String'
-					# Shorter syntax
-					# re-create options object for the lazy user
-					switch a
-					case 3
-						options = {
-							url: options
-							data: data
-							method: 'POST'
-						}
-						data = callback
-					case 2
-						if typeof data == 'function'
-							options = {
-								url: options
-								method: 'GET'
-							}
-						else
-							# this case allows to use undefined as an argument,
-							# the request will be sent as POST with empty body
-							options = {
-								url: options
-								data: data
-								method: 'POST'
-							}
-							data = false
-					default
-						options = {
-							url: options
-							method: 'GET'
-						}
-					# continue the fall
-					fallthrough
-				case 'Object'
-					# Base syntax
-					# compose url
-					url = if config.baseUrl
-						then config.baseUrl
-						else ''
-					if options.hasOwnProperty 'url'
-						url = url + options.url
-					# data must be callback,
-					# because third parameter is not in API spec
-					if data and typeof data != 'function'
-						data = false
-						e = new Error 'incorrect callback type'
-					# swap it
-					callback = data
-					# get the data
-					data = if options.hasOwnProperty 'data'
-						then options.data
-						else undefined
-					# done
-				default
-					e = new Error 'incorrect options type, '+a
+			if (e = parseArguments arguments) instanceof Error
+				# set dummy values
+				options  = {}
+				callback = false
 			else
-				e = new Error 'no parameters'
+				# extract values
+				options  = e.0
+				callback = e.1
+				# no error
+				e = false
+			# get url
+			url = if options.hasOwnProperty 'url'
+				then config.baseUrl + options.url
+				else config.baseUrl
+			# get data
+			if options.hasOwnProperty 'data'
+				data = options.data
 			# }}}
 			# INITIALIZE
 			# individual options {{{
@@ -711,7 +724,7 @@ httpFetch = do ->
 			# set request method
 			if options.hasOwnProperty 'method'
 				o.method = options.method
-			else if options.data
+			else if options.hasOwnProperty 'data'
 				o.method = 'POST'
 			# }}}
 			# request headers and body {{{
@@ -802,10 +815,7 @@ httpFetch = do ->
 			o.signal = d.aborter.signal
 			# set promise
 			if not callback
-				# create custom promise
 				d.promise = newPromise d.aborter
-				# check for instant error
-				# ...
 			/*** TODO: set retry
 			# copy configuration
 			a = d.retry
@@ -843,7 +853,7 @@ httpFetch = do ->
 			if config.secret
 				# start encryption
 				data = config.secret.encrypt o.body, true
-				# wait completed
+				# handle completion
 				data.data.then (e) !->
 					# successfully encrypted
 					# store properly
@@ -851,7 +861,7 @@ httpFetch = do ->
 					d.response.request.crypto = data
 					# check aborted
 					if o.signal.aborted
-						throw new Error 'aborted programmatically, forgot to encrypt'
+						throw new Error 'aborted programmatically'
 					# invoke handler
 					handler url, o, d, callback
 				.catch (e) !->
@@ -871,13 +881,41 @@ httpFetch = do ->
 			return if callback
 				then d.aborter
 				else d.promise
+	###
+	FetchHandler.prototype = {} # global identifier
 	# }}}
 	Api = (handler) !-> # {{{
 		###
 		# instance parent
 		@create = newInstance handler.config
 		###
-		# content-type shortcuts (TODO: how?!)
+		# content-type shortcuts
+		@json = -> # {{{
+			# prepare
+			if (a = parseArguments arguments) instanceof Error
+				return handler.fetch a
+			# set proper headers
+			b = {'content-type': 'application/json;charset=utf-8'}
+			if a.0.headers
+				a.0.headers <<< b
+			else
+				a.0.headers = b
+			# done
+			return handler.fetch a.0, a.1
+		# }}}
+		@text = -> # {{{
+			# prepare
+			if (a = parseArguments arguments) instanceof Error
+				return handler.fetch a
+			# set proper headers
+			b = {'content-type': 'text/plain;charset=utf-8'}
+			if a.0.headers
+				a.0.headers <<< b
+			else
+				a.0.headers = b
+			# done
+			return handler.fetch a.0, a.1
+		# }}}
 		###
 		# crypto section
 		if not apiCrypto
@@ -985,6 +1023,10 @@ httpFetch = do ->
 			switch key
 			case 'secret'
 				return !!handler.config.secret
+			case 'prototype'
+				# to make *instanceof* syntax working,
+				# this special name must be handled
+				return FetchHandler.prototype
 			default
 				if handler.config.hasOwnProperty key
 					return handler.config[key]
@@ -998,7 +1040,7 @@ httpFetch = do ->
 			# set property
 			if handler.config.hasOwnProperty key
 				switch key
-				case 'baseURL'
+				case 'baseUrl'
 					# string
 					if typeof val == 'string'
 						handler.config[key] = val
@@ -1012,6 +1054,13 @@ httpFetch = do ->
 			# done
 			return true
 		# }}}
+	###
+	ApiHandler.prototype = {
+		setPrototypeOf: ->
+			return false
+		getPrototypeOf: ->
+			return FetchHandler.prototype
+	}
 	# }}}
 	# factories
 	newFormData = do -> # {{{
