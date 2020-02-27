@@ -1,9 +1,8 @@
 # httpFetch
-[![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/logo.jpg)](http://www.nathanandersonart.com/)
-[![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
-
 *Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
 wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs/MDN/Contribute/Guidelines/Conventions_definitions#Experimental))*
+[![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/logo.jpg)](http://www.nathanandersonart.com/)
+[![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
 
 ## Tests
@@ -226,6 +225,89 @@ catch (err)
   - when **`EMPTY BODY`** and **`notNull`**
   - when **`JSON NULL`** and **`notNull`**
   - ...
+
+
+## New instance syntax
+### `httpFetch.create(config)`
+#### Parameters
+- **`config`** - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+#### Returns
+[instanceof](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof)
+[`httpFetch`](https://github.com/determin1st/httpFetch)
+#### Example
+```javascript
+/**
+* This section may be safely skipped
+*/
+var soFetch = httpFetch.create({
+  ///
+  // to shorten url parameter in future invocations,
+  // that is super-handy option
+  //
+  baseUrl: 'http://localhost:8080/api/', // '' by default
+  ///
+  // same as in fetch() init parameter
+  // https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
+  //
+  mode: 'same-origin',            // 'cors'
+  credentials:  'include',        // 'same-origin'
+  cache: 'no-store',              // 'default'
+  redirect: 'manual',             // 'follow'
+  referrer: 'http://example.fake',// ''
+  referrerPolicy: 'same-origin',  // ''
+  integrity: knownSRI,            // ''
+  keepalive: true,                // false
+  ///
+  // when your API works solid and optimal,
+  // there is nothing special in http responses and
+  // only "HTTP 200 OK" is used as a positive result
+  // (free from transfer / internal server problems)
+  // but with sloppy and external api,
+  // which uses statuses for data exchange,
+  // setting this option false may help to handle those cases
+  //
+  status200: false, // true by default
+  ///
+  // to get everything,
+  // both request and reponse with headers and stuff,
+  // this option may be set true
+  //
+  fullHouse: true, // false by default
+  ///
+  // empty response (without content body) may be identified as `null`,
+  // but if remote API is designed without empty responses
+  // it may be groupped with errors, for convenience
+  //
+  notNull: true, // false by default
+  ///
+  // Promise will resolve everything by default,
+  // if try/catch or .catch() constructs are used to handle the result,
+  // this option must be enabled
+  //
+  promiseReject: true, // false by default
+  ///
+  // setting connection timeout to zero,
+  // will make request wait forever (until server response)
+  //
+  timeout: 0, // 20 by default
+  ///
+  // custom request headers
+  //
+  headers: {
+    // when response arrives, fetch handler will try to parse it
+    // strictly, according to accepted content type:
+    accept: 'application/json',
+    // remote API may require specific authorization headers set,
+    // exact names and formats depend on implementation:
+    authorization: accessToken
+  }
+});
+
+// check it
+if (soFetch instanceof httpFetch) {
+  // true!
+}
+```
 
 
 ## Advanced syntax
