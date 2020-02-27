@@ -390,7 +390,7 @@ httpFetch = function(){
   FetchOptions = function(){
     this.method = 'GET';
     this.headers = {
-      'content-type': 'application/json;charset=utf-8'
+      'content-type': 'application/json'
     };
     this.body = null;
     this.mode = 'cors';
@@ -801,7 +801,7 @@ httpFetch = function(){
         return handler.fetch(a);
       }
       b = {
-        'content-type': 'application/json;charset=utf-8'
+        'content-type': 'application/json'
       };
       if (a[0].headers) {
         import$(a[0].headers, b);

@@ -433,7 +433,11 @@ httpFetch = do ->
 	# }}}
 	FetchOptions = !-> # {{{
 		@method         = 'GET'
-		@headers        = {'content-type': 'application/json;charset=utf-8'}
+		@headers        = {
+			# explicit charset=utf-8 definition is not required and
+			# should not be there for the sake of purity
+			'content-type': 'application/json'
+		}
 		@body           = null
 		@mode           = 'cors'
 		@credentials    = 'same-origin'
@@ -898,7 +902,7 @@ httpFetch = do ->
 			if (a = parseArguments arguments) instanceof Error
 				return handler.fetch a
 			# set proper headers
-			b = {'content-type': 'application/json;charset=utf-8'}
+			b = {'content-type': 'application/json'}
 			if a.0.headers
 				a.0.headers <<< b
 			else
