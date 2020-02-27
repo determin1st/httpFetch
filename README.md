@@ -1,8 +1,19 @@
 # httpFetch
+[![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/logo.jpg)](http://www.nathanandersonart.com/)
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
 *Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
 wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs/MDN/Contribute/Guidelines/Conventions_definitions#Experimental))*
+
+
+## Tests
+- [**random quote fetcher**](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html)
+- [**authorizing at Google**](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar
+- [**authorizing at GitHub**](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([Their fault!](https://github.com/isaacs/github/issues/330))
+- [**error handling**](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
+- [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
+- [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
+- [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted message (remote session + secret), [FireFox only](https://en.wikipedia.org/wiki/Firefox)
 
 
 ## Base syntax
@@ -68,104 +79,13 @@ with request headers
   - when **set** `options.method` will be `POST`
 - **`callback`** - same as `callback`, [function](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function)
 #### Returns
-The same
+[`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (not callback) or
+[`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback)
 
 
-## New instance syntax
-### `httpFetch.create(config)`
-#### Parameters
-- **`config`** - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
-#### Returns
-new [`httpFetch`](https://github.com/determin1st/httpFetch)
-instance
-#### Example
-```javascript
-/**
-* This section may be safely skipped
-*/
-var soFetch = httpFetch.create({
-  ///
-  // to shorten url parameter in future invocations,
-  // that is super-handy option
-  //
-  baseUrl: 'http://localhost:8080/api/', // '' by default
-  ///
-  // same as in fetch() init parameter
-  // https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
-  //
-  mode: 'same-origin',            // 'cors'
-  credentials:  'include',        // 'same-origin'
-  cache: 'no-store',              // 'default'
-  redirect: 'manual',             // 'follow'
-  referrer: 'http://example.fake',// ''
-  referrerPolicy: 'same-origin',  // ''
-  integrity: knownSRI,            // ''
-  keepalive: true,                // false
-  ///
-  // when your API works solid and optimal,
-  // there is nothing special in http responses and
-  // only "HTTP 200 OK" is used as a positive result
-  // (free from transfer / internal server problems)
-  // but with sloppy and external api,
-  // which uses statuses for data exchange,
-  // setting this option false may help to handle those cases
-  //
-  status200: false, // true by default
-  ///
-  // to get everything,
-  // both request and reponse with headers and stuff,
-  // this option may be set true
-  //
-  fullHouse: true, // false by default
-  ///
-  // empty response (without content body) may be identified as `null`,
-  // but if remote API is designed without empty responses
-  // it may be groupped with errors, for convenience
-  //
-  notNull: true, // false by default
-  ///
-  // Promise will resolve everything by default,
-  // if try/catch or .catch() constructs are used to handle the result,
-  // this option must be enabled
-  //
-  promiseReject: true, // false by default
-  ///
-  // setting connection timeout to zero,
-  // will make request wait forever (until server response)
-  //
-  timeout: 0, // 20 by default
-  ///
-  // custom request headers
-  //
-  headers: {
-    // when response arrives, fetch handler will try to parse it
-    // strictly, according to accepted content type:
-    accept: 'application/json',
-    // remote API may require specific authorization headers set,
-    // exact names and formats depend on implementation:
-    authorization: accessToken
-  }
-});
-
-// check it
-if (soFetch instanceof httpFetch) {
-  // true!
-}
-```
-
-
-## Sending a request
-```
-httpFetch({
-  ///
-  // ...
-  //
-});
-```
-
-## Handling the result
-### Positive by default
-#### with async/await
+## Result syntax
+### Positive style (the default)
+#### async/await
 ```javascript
 var res = await httpFetch('resource');
 if (res instanceof Error)
@@ -181,7 +101,7 @@ else
   // success
 }
 ```
-#### with Promise
+#### Promise
 ```javascript
 var promise = httpFetch('resource')
   .then(function(res) {
@@ -199,7 +119,7 @@ var promise = httpFetch('resource')
     }
   });
 ```
-#### with callback
+#### callback
 ```javascript
 var aborter = httpFetch('resource', function(ok, res) {
   if (ok && res)
@@ -216,8 +136,8 @@ var aborter = httpFetch('resource', function(ok, res) {
   }
 });
 ```
-### Positive, when `notNull` is true
-#### with async/await
+### Positive style, when `notNull`
+#### async/await
 ```javascript
 var res = await soFetch('resource');
 if (res instanceof Error)
@@ -229,7 +149,7 @@ else
   // success (+JSON falsy values except NULL)
 }
 ```
-#### with callback
+#### callback
 ```javascript
 soFetch('resource', function(ok, res) {
   if (ok)
@@ -242,8 +162,8 @@ soFetch('resource', function(ok, res) {
   }
 });
 ```
-### Positive or Negative, when `promiseReject` is true
-#### with Promise
+### Negative style, when `promiseReject`
+#### Promise
 ```javascript
 var promise = httpFetch('resource')
   .then(function(res) {
@@ -260,7 +180,7 @@ var promise = httpFetch('resource')
     // error
   });
 ```
-#### with async/await
+#### async/await
 ```javascript
 try
 {
@@ -283,30 +203,32 @@ catch (err)
 
 ## Result types
 - [JSON](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON)
-  - `application/json`
+  - with `application/json`
 - [USVString](https://developer.mozilla.org/en-US/docs/Web/API/USVString)
-  - `text/*`
+  - with `text/*`
 - [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob)
-  - `image/*`
-  - `audio/*`
-  - `video/*`
+  - with `image/*`
+  - with `audio/*`
+  - with `video/*`
 - [FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
-  - `multipart/form-data`
+  - with `multipart/form-data`
 - [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer)
-  - `application/octet-stream`
-  - `*`
+  - with `application/octet-stream`
+  - ...
 - [null](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null)
-  - `application/json`
-  - `application/octet-stream`
-  - `image/*`
-  - `audio/*`
-  - `video/*`
-  - when response is empty and **`notNull`** is `false`
-- [Error](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
-  - when error occurs
-  - when response is empty and **`notNull`** is `true`
+  - with `application/json` when **`JSON NULL`**
+  - with `application/octet-stream` when not **`byteLength`**
+  - with `image/*`, `audio/*`, `video/*` when not **`size`**
+  - when **`EMPTY BODY`**
+- instanceof [Error](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
+  - when connection fails
+  - when **`HTTP STATUS`** is not `200` and **`status200`**
+  - when **`EMPTY BODY`** and **`notNull`**
+  - when **`JSON NULL`** and **`notNull`**
+  - ...
 
 
+## Advanced syntax
 ## Content-Type shortcuts
 #### `httpFetch.json`
 - `application/json` (**the default**)
@@ -359,33 +281,15 @@ else {
 ```
 
 
-## Maybe
-### Enforce result type
-### File uploads
-### Cancellation
-### Retry
-### Encryption
+## TODO
+#### Retry
+#### Encryption
+#### Streams
+#### Loader
+#### Resumable
 
 
-## Demo
-*check F12 devtools console, while browsing demos*.
-
-- [**random quote fetcher**](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html)
-
-- [**authorizing at Google**](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar
-
-- [**authorizing at GitHub**](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([Their fault!](https://github.com/isaacs/github/issues/330))
-
-- [**error handling**](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
-
-- [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
-
-- [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
-
-- [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted message (remote session + secret), [FireFox only](https://en.wikipedia.org/wiki/Firefox)
-
-
-## Install
+## Try
 CDN:
 ```html
 <script src="https://cdn.jsdelivr.net/npm/http-fetch-json@1/httpFetch.js"></script>
