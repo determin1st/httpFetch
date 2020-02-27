@@ -13,7 +13,7 @@ window.addEventListener('load', main = async function() {
     });
     // set event handler
     button.addEventListener('click', async function(e) {
-        var a,b, res;
+        var a,b,c,d, res;
         ////
         // to prevent simultaneous requests,
         // let's check current state
@@ -24,122 +24,92 @@ window.addEventListener('load', main = async function() {
         state = true;
         console.log('BEGIN');
         /***/
-        // #1: connection timeout
-        // Remote API will delay for more than timeout is, so,
-        // the request will be cancelled..
-        res = await myFetch('sleep/10');
-        if (res instanceof Error) {
-            console.log('#1: '+res.message+': ok!');
-        }
-        else {
-            console.log('#1: fail!');
-        }
-        // #2: incorrect JSON responses
-        res = await myFetch('json/text');
-        if (res instanceof Error) {
-            console.log('#2.1: '+res.message+': ok!');
-        }
-        else {
-            console.log('#2.1: fail!');
-        }
-        res = await myFetch('json/empty_string');
-        if (res instanceof Error) {
-            console.log('#2.2: '+res.message+': fail!');
-        }
-        else {
-            console.log('#2.2: ok!');
-        }
-        res = await myFetch({
+        a = '#1, timeout: ';
+        b = await myFetch('sleep/6');
+        assert(a, b, false);
+        ////
+        a = '#2.1, JSON incorrect string: ';
+        b = await myFetch('json/text');
+        assert(a, b, false);
+        ////
+        a = '#2.2, JSON empty string: ';
+        b = await myFetch('json/empty_string');
+        assert(a, b, true);
+        ////
+        a = '#2.3, JSON empty BODY: ';
+        b = await myFetch('json/empty');
+        assert(a, b, true);
+        a = '#2.3, JSON empty BODY but notNull: ';
+        b = await myFetch({
             url: 'json/empty',
             notNull: true
         });
-        if (res instanceof Error) {
-            console.log('#2.3: '+res.message+': ok!');
-        }
-        else {
-            console.log('#2.3: fail!');
-        }
-        res = await myFetch('json');
-        if (res instanceof Error) {
-            console.log('#2.4: '+res.message+': fail!');
-        }
-        else {
-            console.log('#2.4: ok!');
-        }
-        res = await myFetch('json/incorrect');
-        if (res instanceof Error) {
-            console.log('#2.4: '+res.message+': ok!');
-        }
-        else {
-            console.log('#2.4: fail!');
-        }
-        // #3: Random http statuses (except 200=OK)
-        // Unfortunately, Chrome/Firefox, both are unable to bring some statuses
-        // to the caller API when CORS fails..
-        for (var s of [1,2,3,4,5])
+        assert(a, b, false);
+        ////
+        a = '#2.4, JSON incorrect object: ';
+        b = await myFetch('json/incorrect');
+        assert(a, b, false);
+        ////
+        a = '#2.5, JSON boolean with BOM: ';
+        b = await myFetch('json/withBOM');
+        assert(a, b, true);
+        ////
+        // Random http statuses (except 200=OK)
+        d = [1,2,3,4,5];
+        c = -1;
+        while (++c < d.length)
         {
-            res = await myFetch('status/'+s);
-            if (res instanceof Error) {
-                console.log('#3.'+s+'xx:'+res.status+': '+res.message+': ok!');
+            a = '#3.'+d[c]+'xx, non-200 HTTP STATUS: ';
+            b = await myFetch('status/'+d[c]);
+            if (b.hasOwnProperty('status')) {
+                a += '['+b.status+']: ';
             }
-            else {
-                console.log('#3.'+s+'xx: fail!');
-            }
+            assert(a, b, false);
         }
-        a = '#4, GET method with BODY: '
-        b = await myFetch({
+        ////
+        a = '#4.1, method GET with BODY: '
+        b = await myFetch.text({
             url: 'echo',
             method: 'GET',
-            headers: {
-                'content-type': 'text/plain'
-            },
             data: 'GET with BODY!'
         });
-        if (b instanceof Error) {
-            console.log(a+b.message+': fail!');
-        }
-        else {
-            console.log(a+b+': ok!');
-        }
-        a = '#5, POST method without BODY: ';
+        assert(a, b, true);
+        ////
+        a = '#4.2, method POST without BODY: ';
         b = await myFetch({
             url: 'echo',
             method: 'POST'
         });
-        if (b instanceof Error) {
-            console.log(a+b.message+': fail!');
-        }
-        else {
-            console.log(a+b+': ok!');
-        }
-        a = '#6, POST method with NULL: ';
+        assert(a, b, true);
+        ////
+        a = '#4.3, method POST with NULL: ';
         b = await myFetch({
             url: 'echo',
             method: 'POST',
             data: null
         });
-        if (b instanceof Error) {
-            console.log(a+b.message+': fail!');
-        }
-        else {
-            console.log(a+b+': ok!');
-        }
-        /***
-        a = '#7, ...: ';
-        b = await myFetch.text('echo', '');
-        if (b instanceof Error) {
-            console.log(a+b.message+': fail!');
-        }
-        else
-        {
-            console.log(a+b+': ok!');
-        }
+        assert(a, b, true);
         /***/
         // unlock
         state = false;
         console.log('END');
     });
     /*CODE*/
+    var assert = function(title, res, expect)
+    {
+        var isError = (res instanceof Error);
+        title = '%c'+title;
+        if (isError) {
+            res = res.message+' [Error]';
+        }
+        if (isError !== expect) {
+            expect = 'color:green';
+        }
+        else {
+            expect = 'color:red';
+        }
+        console.log(title+'%c'+res, 'font-weight:bold', expect);
+    };
     ////
     // get source code
     var a,b,c;

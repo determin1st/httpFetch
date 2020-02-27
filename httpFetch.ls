@@ -541,8 +541,11 @@ httpFetch = do ->
 				# parse content
 				switch 0
 				case a.indexOf 'application/json'
-					# not using .json(), because response with empty body
-					# will throw error at no-cors opaque mode (who needs that bullshit?)
+					# JSON:
+					# - not using .json, because response with empty body
+					#   will throw error at no-cors opaque mode (who needs that?)
+					# - the UTF-8 BOM, must not be added, but if present,
+					#   will be stripped by .text
 					return r.text!then jsonDecode
 				case a.indexOf 'application/octet-stream'
 					# binary
