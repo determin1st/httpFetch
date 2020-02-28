@@ -435,11 +435,11 @@ else {
 
 
 ## TODO
-#### Retry
-#### Encryption
+#### Download
 #### Streams
-#### Loader
+#### Retry
 #### Resumable
+#### Loader
 
 
 ## Try

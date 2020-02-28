@@ -532,11 +532,17 @@ httpFetch = do ->
 			@retry     = new RetryData!
 			@aborter   = null
 			@timer     = 0
-			@timerFunc = @timeout and !~>
+			@timerFunc = @timeout and (force) !~>
+				if force
+					# stop timer
+					clearTimeout @timer
+				else
+					# stop fetch
+					@aborter.abort!
 				@timer = 0
-				@aborter.abort!
 	# }}}
 	FetchHandler = (config) !-> # {{{
+		###
 		handler = (url, options, data, callback) !-> # {{{
 			# prepare
 			res = data.response
@@ -544,7 +550,7 @@ httpFetch = do ->
 			responseHandler = (r) -> # {{{
 				# terminate timer
 				if data.timer
-					data.timerFunc!
+					data.timerFunc true
 				# check HTTP status
 				# ok status is any status in the range 200-299,
 				# modern API may limit it to 200 (this option is on by default)
@@ -665,12 +671,12 @@ httpFetch = do ->
 				if options.signal.aborted
 					# determine variant and
 					# replace standard Error
-					e = if data.timeout and data.timer
+					e = if data.timeout and not data.timer
 						then new FetchError 0, 'connection timed out', res
 						else new FetchError 4, e.message, res
 				# terminate timer
 				if data.timer
-					data.timerFunc!
+					data.timerFunc true
 				# wrap unknown
 				if not (e instanceof FetchError)
 					e = new FetchError 5, e.message, res
@@ -733,6 +739,7 @@ httpFetch = do ->
 					.then successHandler
 					.catch errorHandler
 		# }}}
+		###
 		# create object shape
 		@config = config
 		@api    = new Api @

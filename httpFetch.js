@@ -485,9 +485,13 @@ httpFetch = function(){
       this.retry = new RetryData();
       this.aborter = null;
       this.timer = 0;
-      this.timerFunc = this.timeout && function(){
+      this.timerFunc = this.timeout && function(force){
+        if (force) {
+          clearTimeout(this$.timer);
+        } else {
+          this$.aborter.abort();
+        }
         this$.timer = 0;
-        this$.aborter.abort();
       };
     };
   }();
@@ -500,7 +504,7 @@ httpFetch = function(){
       responseHandler = function(r){
         var h, a, b;
         if (data.timer) {
-          data.timerFunc();
+          data.timerFunc(true);
         }
         if (!r.ok || (r.status !== 200 && data.status200)) {
           throw new FetchError(0, 'connection failed', r);
@@ -591,12 +595,12 @@ httpFetch = function(){
       };
       errorHandler = function(e){
         if (options.signal.aborted) {
-          e = data.timeout && data.timer
+          e = data.timeout && !data.timer
             ? new FetchError(0, 'connection timed out', res)
             : new FetchError(4, e.message, res);
         }
         if (data.timer) {
-          data.timerFunc();
+          data.timerFunc(true);
         }
         if (!(e instanceof FetchError)) {
           e = new FetchError(5, e.message, res);
