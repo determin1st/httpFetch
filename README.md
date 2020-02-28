@@ -234,7 +234,16 @@ catch (err)
 #### Returns
 [instanceof](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof)
 [`httpFetch`](https://github.com/determin1st/httpFetch)
-#### Example
+```javascript
+var a = httpFetch.create();
+var b = a.create();
+
+if ((a instanceof httpFetch) &&
+    (b instanceof httpFetch))
+{
+  // true!
+}
+```
 ```javascript
 /**
 * This section may be safely skipped
@@ -302,11 +311,6 @@ var soFetch = httpFetch.create({
     authorization: accessToken
   }
 });
-
-// check it
-if (soFetch instanceof httpFetch) {
-  // true!
-}
 ```
 
 

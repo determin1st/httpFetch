@@ -50,7 +50,7 @@ window.addEventListener('load', main = async function() {
         b = await myFetch('json/incorrect');
         assert(a, b, false);
         ////
-        a = '#2.5, JSON boolean with BOM: ';
+        a = '#2.5, JSON with BOM: ';
         b = await myFetch('json/withBOM');
         assert(a, b, true);
         ////
