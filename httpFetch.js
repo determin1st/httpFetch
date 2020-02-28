@@ -2,7 +2,7 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, isFormData, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
   api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
@@ -334,6 +334,33 @@ httpFetch = function(){
       return new FetchError(3, 'incorrect syntax');
     }
     return a;
+  };
+  isFormData = function(data){
+    var a, b;
+    switch (toString$.call(data).slice(8, -1)) {
+    case 'Object':
+      for (a in data) {
+        if (isFormData(data[a])) {
+          return true;
+        }
+      }
+      break;
+    case 'Array':
+      b = data.length;
+      a = -1;
+      while (++a < b) {
+        if (isFormData(data[a])) {
+          return true;
+        }
+      }
+      break;
+    case 'HTMLInputElement':
+    case 'FileList':
+    case 'File':
+    case 'Blob':
+      return true;
+    }
+    return false;
   };
   FetchConfig = function(){
     this.baseUrl = '';
@@ -835,33 +862,42 @@ httpFetch = function(){
     var handshakeLocked;
     this.create = newInstance(handler.config);
     this.json = function(){
-      var a, b;
+      var a, b, c;
       if ((a = parseArguments(arguments)) instanceof Error) {
         return handler.fetch(a);
       }
-      b = {
-        'content-type': 'application/json'
-      };
-      if (a[0].headers) {
-        import$(a[0].headers, b);
-      } else {
-        a[0].headers = b;
-      }
+      b = a[0];
+      c = b.headers
+        ? b.headers
+        : {};
+      c['content-type'] = 'application/json';
+      a[0].headers = c;
       return handler.fetch(a[0], a[1]);
     };
     this.text = function(){
-      var a, b;
+      var a, b, c;
       if ((a = parseArguments(arguments)) instanceof Error) {
         return handler.fetch(a);
       }
-      b = {
-        'content-type': 'text/plain;charset=utf-8'
-      };
-      if (a[0].headers) {
-        import$(a[0].headers, b);
-      } else {
-        a[0].headers = b;
+      b = a[0];
+      c = b.headers
+        ? b.headers
+        : {};
+      c['content-type'] = 'text/plain;charset=utf-8';
+      a[0].headers = c;
+      return handler.fetch(a[0], a[1]);
+    };
+    this.form = function(){
+      var a, b, c;
+      if ((a = parseArguments(arguments)) instanceof Error) {
+        return handler.fetch(a);
       }
+      b = a[0];
+      c = b.headers
+        ? b.headers
+        : {};
+      c['content-type'] = isFormData(b.data) ? 'multipart/form-data' : 'application/x-www-form-urlencoded';
+      a[0].headers = c;
       return handler.fetch(a[0], a[1]);
     };
     if (!apiCrypto) {
@@ -1131,9 +1167,4 @@ httpFetch = function(){
 }();
 if (httpFetch && typeof module !== 'undefined') {
   module.exports = httpFetch;
-}
-function import$(obj, src){
-  var own = {}.hasOwnProperty;
-  for (var key in src) if (own.call(src, key)) obj[key] = src[key];
-  return obj;
 }

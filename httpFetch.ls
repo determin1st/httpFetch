@@ -371,6 +371,23 @@ httpFetch = do ->
 		# done
 		return a
 	# }}}
+	isFormData = (data) -> # {{{
+		# check type
+		switch typeof! data
+		case 'Object'
+			for a of data when isFormData data[a]
+				return true
+		case 'Array'
+			b = data.length
+			a = -1
+			while ++a < b
+				if isFormData data[a]
+					return true
+		case 'HTMLInputElement', 'FileList', 'File', 'Blob'
+			return true
+		# done
+		return false
+	# }}}
 	# constructors
 	FetchConfig = !-> # {{{
 		@baseUrl        = ''
@@ -955,12 +972,13 @@ httpFetch = do ->
 			# prepare
 			if (a = parseArguments arguments) instanceof Error
 				return handler.fetch a
-			# set proper headers
-			b = {'content-type': 'application/json'}
-			if a.0.headers
-				a.0.headers <<< b
-			else
-				a.0.headers = b
+			# set proper content type
+			b = a.0
+			c = if b.headers
+				then b.headers
+				else {}
+			c['content-type'] = 'application/json'
+			a.0.headers = c
 			# done
 			return handler.fetch a.0, a.1
 		# }}}
@@ -968,12 +986,29 @@ httpFetch = do ->
 			# prepare
 			if (a = parseArguments arguments) instanceof Error
 				return handler.fetch a
-			# set proper headers
-			b = {'content-type': 'text/plain;charset=utf-8'}
-			if a.0.headers
-				a.0.headers <<< b
-			else
-				a.0.headers = b
+			# set proper content type
+			b = a.0
+			c = if b.headers
+				then b.headers
+				else {}
+			c['content-type'] = 'text/plain;charset=utf-8'
+			a.0.headers = c
+			# done
+			return handler.fetch a.0, a.1
+		# }}}
+		@form = -> # {{{
+			# prepare
+			if (a = parseArguments arguments) instanceof Error
+				return handler.fetch a
+			# set proper content type
+			b = a.0
+			c = if b.headers
+				then b.headers
+				else {}
+			c['content-type'] = if isFormData b.data
+				then 'multipart/form-data'
+				else 'application/x-www-form-urlencoded'
+			a.0.headers = c
 			# done
 			return handler.fetch a.0, a.1
 		# }}}
