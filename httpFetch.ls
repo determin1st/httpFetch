@@ -426,9 +426,17 @@ httpFetch = do ->
 				@[a] = !!o[a]
 			# set headers
 			if o.headers
-				@headers = {}
-				for a,b of o.headers
-					@headers[a.toLowerCase!] = b
+				@setHeaders o.headers
+			# done
+		setHeaders: (s) !->
+			# create if does not exist
+			if not (h = @headers)
+				@headers = h = {}
+			# iterate
+			for a,b of s
+				# convert letter case for uniformity and set
+				h[a.toLowerCase!] = b
+			# done
 	}
 	# }}}
 	FetchOptions = !-> # {{{
@@ -448,6 +456,25 @@ httpFetch = do ->
 		@integrity      = ''
 		@keepalive      = false
 		@signal         = null
+	###
+	FetchOptions.prototype = {
+		setHeaders: (s) !->
+			# prepare
+			h = @headers
+			# iterate
+			for a,b of s
+				# convert letter case for uniformity
+				a = a.toLowerCase!
+				# check operation
+				if not b
+					# delete
+					if h.hasOwnProperty a
+						delete h[a]
+				else
+					# set
+					h[a] = b
+			# done
+	}
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
@@ -743,14 +770,14 @@ httpFetch = do ->
 				o.method = 'POST'
 			# }}}
 			# request headers and body {{{
-			# combine default headers with config and
-			# put them into request
-			o.headers <<< config.headers if config.headers
+			# store new headers reference into request
 			d.response.request.headers = o.headers
-			# combine with options
-			if a = options.headers
-				for b of a
-					o.headers[b.toLowerCase!] = a[b]
+			# merge config
+			if config.headers
+				o.setHeaders config.headers
+			# merge user options
+			if typeof! options.headers == 'Object'
+				o.setHeaders options.headers
 			# check data
 			if data != undefined and not e
 				# DATA!

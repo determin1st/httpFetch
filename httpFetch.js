@@ -359,7 +359,7 @@ httpFetch = function(){
     dataOptions: ['baseUrl', 'timeout'],
     flagOptions: ['status200', 'fullHouse', 'notNull', 'promiseReject'],
     setOptions: function(o){
-      var i$, ref$, len$, a, b;
+      var i$, ref$, len$, a;
       for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];
         if (o.hasOwnProperty(a)) {
@@ -379,11 +379,17 @@ httpFetch = function(){
         }
       }
       if (o.headers) {
-        this.headers = {};
-        for (a in ref$ = o.headers) {
-          b = ref$[a];
-          this.headers[a.toLowerCase()] = b;
-        }
+        this.setHeaders(o.headers);
+      }
+    },
+    setHeaders: function(s){
+      var h, a, b;
+      if (!(h = this.headers)) {
+        this.headers = h = {};
+      }
+      for (a in s) {
+        b = s[a];
+        h[a.toLowerCase()] = b;
       }
     }
   };
@@ -402,6 +408,23 @@ httpFetch = function(){
     this.integrity = '';
     this.keepalive = false;
     this.signal = null;
+  };
+  FetchOptions.prototype = {
+    setHeaders: function(s){
+      var h, a, b;
+      h = this.headers;
+      for (a in s) {
+        b = s[a];
+        a = a.toLowerCase();
+        if (!b) {
+          if (h.hasOwnProperty(a)) {
+            delete h[a];
+          }
+        } else {
+          h[a] = b;
+        }
+      }
+    }
   };
   FetchError = function(){
     var E;
@@ -666,14 +689,12 @@ httpFetch = function(){
       } else if (options.hasOwnProperty('data')) {
         o.method = 'POST';
       }
-      if (config.headers) {
-        import$(o.headers, config.headers);
-      }
       d.response.request.headers = o.headers;
-      if (a = options.headers) {
-        for (b in a) {
-          o.headers[b.toLowerCase()] = a[b];
-        }
+      if (config.headers) {
+        o.setHeaders(config.headers);
+      }
+      if (toString$.call(options.headers).slice(8, -1) === 'Object') {
+        o.setHeaders(options.headers);
       }
       if (data !== undefined && !e) {
         a = o.headers['content-type'];

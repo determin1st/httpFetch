@@ -89,6 +89,24 @@ window.addEventListener('load', main = async function() {
             data: null
         });
         assert(a, b, true);
+        a = '#5.1, too many redirects: ';
+        b = await myFetch('redirect/21');
+        assert(a, b, false);
+        a = '#5.2, redirected: ';
+        b = await myFetch('redirect/20');
+        assert(a, b, true);
+        /***
+        a = '#4.4, method HEAD: ';
+        c = httpFetch.create({
+            mode: 'no-cors',
+            method: 'HEAD',
+            headers: {
+                'accept-encoding': 'gzip, deflate, br',
+                'content-type': null
+            }
+        });
+        b = await c('https://stackoverflow.com/questions');
+        console.log(b);
         /***/
         // unlock
         state = false;
