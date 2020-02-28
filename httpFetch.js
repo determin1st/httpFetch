@@ -15,7 +15,7 @@ httpFetch = function(){
         return JSON.parse(s);
       } catch (e$) {
         e = e$;
-        throw new FetchError('incorrect JSON: ' + s, 0);
+        throw new FetchError(1, 'incorrect JSON: ' + s, 0);
       }
     }
     return null;
@@ -286,7 +286,7 @@ httpFetch = function(){
   }();
   parseArguments = function(a){
     if (!a.length) {
-      return new Error('no parameters');
+      return new FetchError(3, 'no parameters specified');
     }
     switch (toString$.call(a[0]).slice(8, -1)) {
     case 'String':
@@ -324,14 +324,14 @@ httpFetch = function(){
       // fallthrough
     case 'Object':
       if (a[0].url && typeof a[0].url !== 'string') {
-        return new Error('wrong url type');
+        return new FetchError(3, 'wrong url type');
       }
       if (a[1] && typeof a[1] !== 'function') {
-        return new Error('wrong callback type');
+        return new FetchError(3, 'wrong callback type');
       }
       break;
     default:
-      return new Error('incorrect arguments syntax');
+      return new FetchError(3, 'incorrect syntax');
     }
     return a;
   };
@@ -429,17 +429,19 @@ httpFetch = function(){
   FetchError = function(){
     var E;
     if (Error.captureStackTrace) {
-      E = function(message, status){
-        this.name = 'FetchError';
+      E = function(id, message, res){
+        this.id = id;
         this.message = message;
-        this.status = status;
+        this.response = res || null;
+        this.status = res ? res.status : 0;
         Error.captureStackTrace(this, FetchError);
       };
     } else {
-      E = function(message, status){
-        this.name = 'FetchError';
+      E = function(id, message, res){
+        this.id = id;
         this.message = message;
-        this.status = status;
+        this.response = res || null;
+        this.status = res ? res.status : 0;
         this.stack = new Error(message).stack;
       };
     }
@@ -473,20 +475,20 @@ httpFetch = function(){
     };
     return FetchData = function(config){
       var this$ = this;
-      this.promise = null;
-      this.response = new ResponseData();
-      this.retry = new RetryData();
-      this.aborter = null;
-      this.timer = 0;
-      this.timerFunc = function(){
-        this$.timer = 0;
-        this$.aborter.abort();
-      };
       this.status200 = config.status200;
       this.fullHouse = config.fullHouse;
       this.notNull = config.notNull;
       this.promiseReject = config.promiseReject;
       this.timeout = 1000 * config.timeout;
+      this.promise = null;
+      this.response = new ResponseData();
+      this.retry = new RetryData();
+      this.aborter = null;
+      this.timer = 0;
+      this.timerFunc = this.timeout && function(){
+        this$.timer = 0;
+        this$.aborter.abort();
+      };
     };
   }();
   FetchHandler = function(config){
@@ -498,11 +500,10 @@ httpFetch = function(){
       responseHandler = function(r){
         var h, a, b;
         if (data.timer) {
-          clearTimeout(data.timer);
-          data.timer = 0;
+          data.timerFunc();
         }
         if (!r.ok || (r.status !== 200 && data.status200)) {
-          throw new FetchError(r.statusText, r.status);
+          throw new FetchError(0, 'connection failed', r);
         }
         res.status = r.status;
         res.headers = h = {};
@@ -512,7 +513,7 @@ httpFetch = function(){
         }
         if ((res.type = r.type) === 'opaque') {
           if (sec) {
-            throw new FetchError('encrypted opaque response', res.status);
+            throw new FetchError(1, 'encrypted opaque response', res);
           }
           return r;
         }
@@ -522,7 +523,7 @@ httpFetch = function(){
         b = h['content-type'] || '';
         if (a = options.headers.accept) {
           if (b && a !== b) {
-            throw new FetchError('incorrect content-type', res.status);
+            throw new FetchError(1, 'incorrect content-type header', res);
           }
         } else {
           a = b;
@@ -554,7 +555,7 @@ httpFetch = function(){
           var c;
           if ((a.data = d) === null) {
             sec.manager('fail');
-            throw new FetchError('failed to decrypt', res.status);
+            throw new FetchError(2, 'decryption failed', res);
           }
           res.crypto = a;
           sec.save();
@@ -575,7 +576,7 @@ httpFetch = function(){
       successHandler = function(d){
         var a;
         if (data.notNull && ((a = toString$.call(d).slice(8, -1)) === 'Null' || a === 'Blob' && a.size === 0 || a === 'ArrayBuffer' && a.byteLength === 0)) {
-          throw new FetchError('empty response', res.status);
+          throw new FetchError(1, 'empty response', res);
         }
         if (data.fullHouse) {
           res.data = d;
@@ -589,11 +590,16 @@ httpFetch = function(){
         }
       };
       errorHandler = function(e){
+        if (options.signal.aborted) {
+          e = data.timeout && data.timer
+            ? new FetchError(0, 'connection timed out', res)
+            : new FetchError(4, e.message, res);
+        }
         if (data.timer) {
-          clearTimeout(data.timer);
-          data.timer = 0;
-        } else if (data.timeout && options.signal.aborted) {
-          e = new FetchError('connection timed out', 0);
+          data.timerFunc();
+        }
+        if (!(e instanceof FetchError)) {
+          e = new FetchError(5, e.message, res);
         }
         if (callback) {
           callback(false, e);
@@ -607,6 +613,7 @@ httpFetch = function(){
         }
         /***
         # TODO: retry request?!
+        # WARN: incorrect code below
         while true
         	# check for incorrect response
         	if not (e instanceof FetchError) or e.status == 0
@@ -708,35 +715,35 @@ httpFetch = function(){
             // fallthrough
           case a.indexOf('application/json'):
             if (b !== 'String' && !(data = jsonEncode(data))) {
-              e = new Error('failed to encode request data');
+              e = new FetchError(3, 'failed to encode request data to JSON');
             }
             break;
           case a.indexOf('multipart/form-data'):
             if (b === 'String' || b === 'FormData') {
-              e = new Error('incorrect request data');
+              e = new FetchError(3, 'encryption of prepared FormData is not supported');
             }
             delete o.headers['content-type'];
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              e = new Error('incorrect data type');
+              e = new FetchError(3, 'incorrect request raw data type');
             }
           }
         } else {
           switch (0) {
           case a.indexOf('application/json'):
             if (b !== 'String' && !(data = jsonEncode(data))) {
-              e = new Error('failed to encode request data');
+              e = new FetchError(3, 'failed to encode request data to JSON');
             }
             break;
           case a.indexOf('application/x-www-form-urlencoded'):
             if ((b !== 'String' && b !== 'URLSearchParams') && !(data = newQueryString(data))) {
-              e = new Error('failed to encode request data');
+              e = new FetchError(3, 'failed to encode request data to URLSearchParams');
             }
             break;
           case a.indexOf('multipart/form-data'):
             if ((b !== 'String' && b !== 'FormData') && !(data = newFormData(data))) {
-              e = new Error('failed to encode request data');
+              e = new FetchError(3, 'failed to encode request data to FormData');
             }
             if (b !== 'String') {
               delete o.headers['content-type'];
@@ -744,7 +751,7 @@ httpFetch = function(){
             break;
           default:
             if (b !== 'String' && b !== 'ArrayBuffer') {
-              e = new Error('incorrect data type');
+              e = new FetchError(3, 'incorrect request raw data type');
             }
           }
         }
@@ -796,7 +803,7 @@ httpFetch = function(){
           o.body = data.data = e;
           d.response.request.crypto = data;
           if (o.signal.aborted) {
-            throw new Error('aborted programmatically');
+            throw new FetchError(4, 'aborted programmatically');
           }
           handler(url, o, d, callback);
         })['catch'](function(e){

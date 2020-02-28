@@ -22,7 +22,7 @@ httpFetch = do ->
 				return JSON.parse s
 			catch
 				# breaks to upper level!
-				throw new FetchError 'incorrect JSON: '+s, 0
+				throw new FetchError 1, 'incorrect JSON: '+s, 0
 		# empty equals to null
 		return null
 	# }}}
@@ -317,7 +317,7 @@ httpFetch = do ->
 	parseArguments = (a) -> # {{{
 		# check count
 		if not a.length
-			return new Error 'no parameters'
+			return new FetchError 3, 'no parameters specified'
 		# check what syntax is used
 		switch typeof! a.0
 		case 'String'
@@ -361,13 +361,13 @@ httpFetch = do ->
 			# Default syntax: [options,callback]
 			# check url
 			if a.0.url and typeof a.0.url != 'string'
-				return new Error 'wrong url type'
+				return new FetchError 3, 'wrong url type'
 			# check callback
 			if a.1 and (typeof a.1 != 'function')
-				return new Error 'wrong callback type'
+				return new FetchError 3, 'wrong callback type'
 		default
 			# Incorrect syntax
-			return new Error 'incorrect arguments syntax'
+			return new FetchError 3, 'incorrect syntax'
 		# done
 		return a
 	# }}}
@@ -478,17 +478,23 @@ httpFetch = do ->
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
-			E = (message, status) !->
-				@name    = 'FetchError'
-				@message = message
-				@status  = status
+			E = (id, message, res) !->
+				@id       = id
+				@message  = message
+				@response = res or null
+				@status   = if res
+					then res.status
+					else 0
 				Error.captureStackTrace @, FetchError
 		else
-			E = (message, status) !->
-				@name    = 'FetchError'
-				@message = message
-				@status  = status
-				@stack   = (new Error message).stack
+			E = (id, message, res) !->
+				@id       = id
+				@message  = message
+				@response = res or null
+				@status   = if res
+					then res.status
+					else 0
+				@stack    = (new Error message).stack
 		###
 		E.prototype = Error.prototype
 		return E
@@ -514,21 +520,21 @@ httpFetch = do ->
 			@delay        = 1
 		###
 		return FetchData = (config) !->
-			# controllers and data
-			@promise   = null
-			@response  = new ResponseData!
-			@retry     = new RetryData!
-			@aborter   = null
-			@timer     = 0
-			@timerFunc = !~>
-				@timer = 0
-				@aborter.abort!
 			# cumulative request configuration
 			@status200     = config.status200
 			@fullHouse     = config.fullHouse
 			@notNull       = config.notNull
 			@promiseReject = config.promiseReject
 			@timeout       = 1000 * config.timeout
+			# controllers and data
+			@promise   = null
+			@response  = new ResponseData!
+			@retry     = new RetryData!
+			@aborter   = null
+			@timer     = 0
+			@timerFunc = @timeout and !~>
+				@timer = 0
+				@aborter.abort!
 	# }}}
 	FetchHandler = (config) !-> # {{{
 		handler = (url, options, data, callback) !-> # {{{
@@ -538,13 +544,12 @@ httpFetch = do ->
 			responseHandler = (r) -> # {{{
 				# terminate timer
 				if data.timer
-					clearTimeout data.timer
-					data.timer = 0
+					data.timerFunc!
 				# check HTTP status
 				# ok status is any status in the range 200-299,
 				# modern API may limit it to 200 (this option is on by default)
 				if not r.ok or (r.status != 200 and data.status200)
-					throw new FetchError r.statusText, r.status
+					throw new FetchError 0, 'connection failed', r
 				# set status
 				res.status = r.status
 				# set headers
@@ -557,8 +562,8 @@ httpFetch = do ->
 				if (res.type = r.type) == 'opaque'
 					# check encrypted
 					if sec
-						# can't access data === can't decrypt it
-						throw new FetchError 'encrypted opaque response', res.status
+						# can't access data === can't decrypt
+						throw new FetchError 1, 'encrypted opaque response', res
 					# return as is,
 					# the opaque Response object may be consumed by other APIs
 					return r
@@ -573,7 +578,7 @@ httpFetch = do ->
 					# prefer own setting
 					# match against server
 					if b and a != b
-						throw new FetchError 'incorrect content-type', res.status
+						throw new FetchError 1, 'incorrect content-type header', res
 				else
 					# use server setting
 					a = b
@@ -615,7 +620,7 @@ httpFetch = do ->
 					# check decrypted data
 					if (a.data = d) == null
 						sec.manager 'fail'
-						throw new FetchError 'failed to decrypt', res.status
+						throw new FetchError 2, 'decryption failed', res
 					# store
 					res.crypto = a
 					# update secret
@@ -642,7 +647,7 @@ httpFetch = do ->
 				    a == 'Blob' and a.size == 0 or \
 				    a == 'ArrayBuffer' and a.byteLength == 0)
 					###
-					throw new FetchError 'empty response', res.status
+					throw new FetchError 1, 'empty response', res
 				# prepare result
 				if data.fullHouse
 					res.data = d
@@ -655,15 +660,21 @@ httpFetch = do ->
 					data.promise.resolve d
 			# }}}
 			errorHandler = (e) !-> # {{{
+				# analyze
+				# check cancellation
+				if options.signal.aborted
+					# determine variant and
+					# replace standard Error
+					e = if data.timeout and data.timer
+						then new FetchError 0, 'connection timed out', res
+						else new FetchError 4, e.message, res
 				# terminate timer
 				if data.timer
-					clearTimeout data.timer
-					data.timer = 0
-				else if data.timeout and options.signal.aborted
-					# replace aborter Error with
-					# connection timeout Error
-					e = new FetchError 'connection timed out', 0
-				# return through callback or promise
+					data.timerFunc!
+				# wrap unknown
+				if not (e instanceof FetchError)
+					e = new FetchError 5, e.message, res
+				# complete
 				if callback
 					callback false, e
 				else
@@ -674,6 +685,7 @@ httpFetch = do ->
 						data.promise.resolve e
 				/***
 				# TODO: retry request?!
+				# WARN: incorrect code below
 				while true
 					# check for incorrect response
 					if not (e instanceof FetchError) or e.status == 0
@@ -801,22 +813,22 @@ httpFetch = do ->
 					case a.indexOf 'application/json'
 						# JSON
 						if b != 'String' and not (data = jsonEncode data)
-							e = new Error 'failed to encode request data'
+							e = new FetchError 3, 'failed to encode request data to JSON'
 					case a.indexOf 'multipart/form-data'
-						# TODO: JSON in FormData
+						# JSON in FormData
 						# prepared data is not supported
 						if b in <[String FormData]>
-							e = new Error 'incorrect request data'
+							e = new FetchError 3, 'encryption of prepared FormData is not supported'
 						# remove type header
 						delete o.headers['content-type']
 						# the data will be wrapped after encryption!
-						# ...
+						# TODO
 						# ...
 						# ...
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							e = new Error 'incorrect data type'
+							e = new FetchError 3, 'incorrect request raw data type'
 				else
 					# NOT ENCRYPTED!
 					# check content-type
@@ -824,15 +836,15 @@ httpFetch = do ->
 					case a.indexOf 'application/json'
 						# JSON
 						if b != 'String' and not (data = jsonEncode data)
-							e = new Error 'failed to encode request data'
+							e = new FetchError 3, 'failed to encode request data to JSON'
 					case a.indexOf 'application/x-www-form-urlencoded'
 						# URLSearchParams
 						if b not in <[String URLSearchParams]> and not (data = newQueryString data)
-							e = new Error 'failed to encode request data'
+							e = new FetchError 3, 'failed to encode request data to URLSearchParams'
 					case a.indexOf 'multipart/form-data'
 						# FormData
 						if b not in <[String FormData]> and not (data = newFormData data)
-							e = new Error 'failed to encode request data'
+							e = new FetchError 3, 'failed to encode request data to FormData'
 						# remove type header, because it conflicts with FormData object,
 						# despite it perfectly fits the logic (wtf)
 						if b != 'String'
@@ -840,7 +852,7 @@ httpFetch = do ->
 					default
 						# RAW
 						if b not in <[String ArrayBuffer]>
-							e = new Error 'incorrect data type'
+							e = new FetchError 3, 'incorrect request raw data type'
 				# set
 				o.body = d.response.request.data = data
 			else
@@ -903,7 +915,7 @@ httpFetch = do ->
 					d.response.request.crypto = data
 					# check aborted
 					if o.signal.aborted
-						throw new Error 'aborted programmatically'
+						throw new FetchError 4, 'aborted programmatically'
 					# invoke handler
 					handler url, o, d, callback
 				.catch (e) !->

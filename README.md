@@ -6,13 +6,13 @@ wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs
 
 
 ## Tests
-- [**random quote fetcher**](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html)
-- [**authorizing at Google**](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar
-- [**authorizing at GitHub**](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([Their fault!](https://github.com/isaacs/github/issues/330))
-- [**error handling**](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection timeout, incorrect response body, bad http statuses
-- [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request. (step on yourself)
-- [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): uploads single image file with some metadata and shows it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) content handling)
-- [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted message (remote session + secret), [FireFox only](https://en.wikipedia.org/wiki/Firefox)
+- [**random quote fetcher**](https://raw.githack.com/determin1st/httpFetch/master/test-1/index.html): get a saying from the famous author.
+- [**authorizing at Google**](https://raw.githack.com/determin1st/httpFetch/master/test-2/index.html): getting user name & avatar.
+- [**authorizing at GitHub**](https://raw.githack.com/determin1st/httpFetch/master/test-4/index.html): exchanging code for token, getting user e-mail ([their fault!](https://github.com/isaacs/github/issues/330)).
+- [**error handling**](http://raw.githack.com/determin1st/httpFetch/master/test-3/index.html): connection problem, incorrect response body, bad http statuses, etc.
+- [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request (step on yourself).
+- [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): upload single image file with some metadata and show it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) handling).
+- [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): do a [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted messages (remote session + secret)([FireFox only](https://en.wikipedia.org/wiki/Firefox)).
 
 
 ## Base syntax
@@ -93,7 +93,7 @@ if (res instanceof Error)
 }
 else if (!res)
 {
-  // empty response
+  // empty response, JSON falsy values
 }
 else
 {
@@ -102,7 +102,7 @@ else
 ```
 #### Promise
 ```javascript
-var promise = httpFetch('resource')
+httpFetch('resource')
   .then(function(res) {
     if (res instanceof Error)
     {
@@ -110,7 +110,7 @@ var promise = httpFetch('resource')
     }
     else if (!res)
     {
-      // empty response or JSON falsy values
+      // empty response, JSON falsy values
     }
     else
     {
@@ -120,7 +120,7 @@ var promise = httpFetch('resource')
 ```
 #### callback
 ```javascript
-var aborter = httpFetch('resource', function(ok, res) {
+httpFetch('resource', function(ok, res) {
   if (ok && res)
   {
     // success
@@ -141,30 +141,44 @@ var aborter = httpFetch('resource', function(ok, res) {
 var res = await soFetch('resource');
 if (res instanceof Error)
 {
-  // error (+empty response, +JSON NULL)
+  // error, empty response, JSON NULL
 }
 else
 {
-  // success (+JSON falsy values except NULL)
+  // success, JSON falsy values but JSON NULL)
 }
+```
+#### Promise
+```javascript
+soFetch('resource')
+  .then(function(res) {
+    if (res instanceof Error)
+    {
+      // error, empty response, JSON NULL
+    }
+    else
+    {
+      // success, JSON falsy values but JSON NULL)
+    }
+  });
 ```
 #### callback
 ```javascript
 soFetch('resource', function(ok, res) {
   if (ok)
   {
-    // success (+JSON falsy values except NULL)
+    // success, JSON falsy values but JSON NULL)
   }
   else
   {
-    // error (+empty response, +JSON NULL)
+    // error, empty response, JSON NULL
   }
 });
 ```
 ### Negative style, when `promiseReject`
 #### Promise
 ```javascript
-var promise = httpFetch('resource')
+oFetch('resource')
   .then(function(res) {
     if (res)
     {
@@ -172,10 +186,11 @@ var promise = httpFetch('resource')
     }
     else
     {
-      // empty response or JSON falsy values
+      // empty response, JSON falsy values
     }
   })
-  .catch(function(err) {
+  .catch(function(err)
+  {
     // error
   });
 ```
@@ -190,7 +205,7 @@ try
   }
   else
   {
-    // empty response or JSON falsy values
+    // empty response, JSON falsy values
   }
 }
 catch (err)
@@ -218,13 +233,65 @@ catch (err)
   - with `application/json` when **`JSON NULL`**
   - with `application/octet-stream` when not **`byteLength`**
   - with `image/*`, `audio/*`, `video/*` when not **`size`**
-  - when **`EMPTY BODY`**
-- instanceof [Error](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
+  - when **`EMPTY RESPONSE`**
+- [FetchError](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)
   - when connection fails
   - when **`HTTP STATUS`** is not `200` and **`status200`**
-  - when **`EMPTY BODY`** and **`notNull`**
+  - when **`EMPTY RESPONSE`** and **`notNull`**
   - when **`JSON NULL`** and **`notNull`**
   - ...
+
+## FetchError id
+```javascript
+if (res instanceof Error)
+{
+  switch (res.id)
+  {
+    case 0:
+      ///
+      // connection problems:
+      // - connection timed out
+      // - wrong CORS headers
+      // - unacceptable HTTP STATUS
+      // - etc
+      ///
+      break;
+    case 1:
+      ///
+      // something's wrong with the response data:
+      // - empty response
+      // - incorrect content type
+      // - etc
+      ///
+      break;
+    case 2:
+      ///
+      // security compromised
+      ///
+      break;
+    case 3:
+      ///
+      // incorrect API usage
+      // - wrong/unknown syntax used
+      // - wrong input
+      // - internal problem
+      ///
+      break;
+    case 4:
+      ///
+      // aborted programmatically:
+      // - cancelled before the request was made
+      // - cancelled in the process, before response arrived
+      ///
+      break;
+    case 5:
+      ///
+      // unknown errors
+      ///
+      break;
+  }
+}
+```
 
 
 ## New instance syntax
