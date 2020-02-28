@@ -489,14 +489,21 @@ httpFetch = function(){
         }
         if ((res.type = r.type) === 'opaque') {
           if (sec) {
-            throw new FetchError('encrypted opaque response', r.status);
+            throw new FetchError('encrypted opaque response', res.status);
           }
           return r;
         }
         if (sec) {
           return r.arrayBuffer();
         }
-        a = options.headers.accept || h['content-type'] || '';
+        b = h['content-type'] || '';
+        if (a = options.headers.accept) {
+          if (b && a !== b) {
+            throw new FetchError('incorrect content-type', res.status);
+          }
+        } else {
+          a = b;
+        }
         switch (0) {
         case a.indexOf('application/json'):
           return r.text().then(jsonDecode);

@@ -531,7 +531,7 @@ httpFetch = do ->
 					# check encrypted
 					if sec
 						# can't access data === can't decrypt it
-						throw new FetchError 'encrypted opaque response', r.status
+						throw new FetchError 'encrypted opaque response', res.status
 					# return as is,
 					# the opaque Response object may be consumed by other APIs
 					return r
@@ -540,8 +540,16 @@ httpFetch = do ->
 				if sec
 					return r.arrayBuffer!
 				###
-				# determine content type (own setting is preferred)
-				a = options.headers.accept or h['content-type'] or ''
+				# check accepted content type
+				b = h['content-type'] or ''
+				if a = options.headers.accept
+					# prefer own setting
+					# match against server
+					if b and a != b
+						throw new FetchError 'incorrect content-type', res.status
+				else
+					# use server setting
+					a = b
 				# parse content
 				switch 0
 				case a.indexOf 'application/json'
