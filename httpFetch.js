@@ -380,10 +380,11 @@ httpFetch = function(){
     this.retry = null;
     this.secret = null;
     this.headers = null;
+    this.redirectCount = 5;
   };
   FetchConfig.prototype = {
     fetchOptions: ['mode', 'credentials', 'cache', 'redirect', 'referrer', 'referrerPolicy', 'integrity', 'keepalive'],
-    dataOptions: ['baseUrl', 'timeout'],
+    dataOptions: ['baseUrl', 'timeout', 'redirectCount'],
     flagOptions: ['status200', 'fullHouse', 'notNull', 'promiseReject'],
     setOptions: function(o){
       var i$, ref$, len$, a;
@@ -476,7 +477,7 @@ httpFetch = function(){
     return E;
   }();
   FetchData = function(){
-    var ResponseData, RetryData, FetchData;
+    var ResponseData, RedirectData, RetryData, FetchData;
     ResponseData = function(){
       var RequestData, ResponseData;
       RequestData = function(){
@@ -493,6 +494,10 @@ httpFetch = function(){
         this.request = new RequestData();
       };
     }();
+    RedirectData = function(count){
+      this.count = count;
+      this.current = 0;
+    };
     RetryData = function(){
       this.count = 15;
       this.current = 0;
@@ -509,6 +514,7 @@ httpFetch = function(){
       this.timeout = 1000 * config.timeout;
       this.promise = null;
       this.response = new ResponseData();
+      this.redirect = new RedirectData(config.redirectCount);
       this.retry = new RetryData();
       this.aborter = null;
       this.timer = 0;
@@ -533,14 +539,31 @@ httpFetch = function(){
         if (data.timer) {
           data.timerFunc(true);
         }
-        if (!r.ok || (r.status !== 200 && data.status200)) {
-          throw new FetchError(0, 'connection failed', r);
-        }
         res.status = r.status;
         res.headers = h = {};
         a = r.headers.entries();
         while (!(b = a.next()).done) {
           h[b.value[0].toLowerCase()] = b.value[1];
+        }
+        if (!r.ok) {
+          if (options.redirect === 'manual' && ((r.status >= 300 && r.status < 400) || r.type === 'opaqueredirect')) {
+            if (r.type === 'opaqueredirect') {
+              throw new FetchError(0, 'opaque redirect', res);
+            }
+            if (!(a = data.redirect).count) {
+              throw new FetchError(0, 'no redirects allowed', res);
+            }
+            if (a.count > 0) {
+              if (++a.current > a.count) {
+                throw new FetchError(0, 'too many redirects', res);
+              }
+            }
+            throw new FetchError(3, 'not implemented :(', res);
+          }
+          throw new FetchError(0, 'connection failed', res);
+        }
+        if (r.status !== 200 && data.status200) {
+          throw new FetchError(0, 'HTTP status 200 required', res);
         }
         if ((res.type = r.type) === 'opaque') {
           if (sec) {
@@ -629,7 +652,7 @@ httpFetch = function(){
         if (data.timer) {
           data.timerFunc(true);
         }
-        if (!(e instanceof FetchError)) {
+        if (!e.hasOwnProperty('id')) {
           e = new FetchError(5, e.message, res);
         }
         if (callback) {

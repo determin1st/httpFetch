@@ -409,6 +409,7 @@ httpFetch = do ->
 		@retry          = null
 		@secret         = null
 		@headers        = null
+		@redirectCount  = 5
 	###
 	FetchConfig.prototype = {
 		fetchOptions: [
@@ -424,6 +425,7 @@ httpFetch = do ->
 		dataOptions: [
 			'baseUrl'
 			'timeout'
+			'redirectCount'
 		]
 		flagOptions: [
 			'status200'
@@ -529,6 +531,9 @@ httpFetch = do ->
 				@data    = null
 				@crypto  = null
 				@request = new RequestData!
+		RedirectData = (count) !->
+			@count   = count
+			@current = 0
 		RetryData = !->
 			@count        = 15
 			@current      = 0
@@ -546,6 +551,7 @@ httpFetch = do ->
 			# controllers and data
 			@promise   = null
 			@response  = new ResponseData!
+			@redirect  = new RedirectData config.redirectCount
 			@retry     = new RetryData!
 			@aborter   = null
 			@timer     = 0
@@ -568,11 +574,6 @@ httpFetch = do ->
 				# terminate timer
 				if data.timer
 					data.timerFunc true
-				# check HTTP status
-				# ok status is any status in the range 200-299,
-				# modern API may limit it to 200 (this option is on by default)
-				if not r.ok or (r.status != 200 and data.status200)
-					throw new FetchError 0, 'connection failed', r
 				# set status
 				res.status = r.status
 				# set headers
@@ -580,6 +581,39 @@ httpFetch = do ->
 				a = r.headers.entries!
 				while not (b = a.next!).done
 					h[b.value.0.toLowerCase!] = b.value.1
+				# check the OK status,
+				# OK status is any status in the range [200-299]
+				if not r.ok
+					# handle redirection
+					# RFC7231§6.4: The 3xx (Redirection) class of status code indicates
+					# that further action needs to be taken by the user agent in order to
+					# fulfill the request. If a Location header field is provided,
+					# the user agent MAY automatically redirect its request to the URI
+					# referenced by the Location field value,
+					# even if the specific status code is not understood.
+					if options.redirect == 'manual' and \
+					   ((r.status >= 300 and r.status < 400) or \
+					    (r.type == 'opaqueredirect'))
+						###
+						# check opaque (always? forever?)
+						if r.type == 'opaqueredirect'
+							throw new FetchError 0, 'opaque redirect', res
+						# check allowed
+						if not (a = data.redirect).count
+							throw new FetchError 0, 'no redirects allowed', res
+						# allow infinite redirects (hell yeah)
+						if a.count > 0
+							# increase counter
+							if ++a.current > a.count
+								throw new FetchError 0, 'too many redirects', res
+						# follow location
+						# ...
+						throw new FetchError 3, 'not implemented :(', res
+					# fail
+					throw new FetchError 0, 'connection failed', res
+				# enforce HTTP status 200 (KISS API)
+				if r.status != 200 and data.status200
+					throw new FetchError 0, 'HTTP status 200 required', res
 				# set type and
 				# check opaque
 				if (res.type = r.type) == 'opaque'
@@ -695,7 +729,7 @@ httpFetch = do ->
 				if data.timer
 					data.timerFunc true
 				# wrap unknown
-				if not (e instanceof FetchError)
+				if not e.hasOwnProperty 'id'
 					e = new FetchError 5, e.message, res
 				# complete
 				if callback

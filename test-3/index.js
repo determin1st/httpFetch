@@ -14,7 +14,7 @@ window.addEventListener('load', main = async function() {
     // set event handler
     button.addEventListener('click', async function(e) {
         var a,b,c,d, res;
-        ////
+        // prepare {{{
         // to prevent simultaneous requests,
         // let's check current state
         if (state) {
@@ -23,19 +23,20 @@ window.addEventListener('load', main = async function() {
         // lock
         state = true;
         console.log('BEGIN');
+        // }}}
         /***/
+        // run tests {{{
         a = '#1, timeout: ';
         b = await myFetch('sleep/6');
         assert(a, b, false);
         ////
+        ////
         a = '#2.1, JSON incorrect string: ';
         b = await myFetch('json/text');
         assert(a, b, false);
-        ////
         a = '#2.2, JSON empty string: ';
         b = await myFetch('json/empty_string');
         assert(a, b, true);
-        ////
         a = '#2.3, JSON empty BODY: ';
         b = await myFetch('json/empty');
         assert(a, b, true);
@@ -45,14 +46,13 @@ window.addEventListener('load', main = async function() {
             notNull: true
         });
         assert(a, b, false);
-        ////
         a = '#2.4, JSON incorrect object: ';
         b = await myFetch('json/incorrect');
         assert(a, b, false);
-        ////
         a = '#2.5, JSON with BOM: ';
         b = await myFetch('json/withBOM');
         assert(a, b, true);
+        ////
         ////
         // Random http statuses (except 200=OK)
         d = [1,2,3,4,5];
@@ -67,6 +67,7 @@ window.addEventListener('load', main = async function() {
             assert(a, b, false);
         }
         ////
+        ////
         a = '#4.1, method GET with BODY: '
         b = await myFetch.text({
             url: 'echo',
@@ -74,27 +75,42 @@ window.addEventListener('load', main = async function() {
             data: 'GET with BODY!'
         });
         assert(a, b, true);
-        ////
         a = '#4.2, method POST without BODY: ';
         b = await myFetch({
             url: 'echo',
             method: 'POST'
         });
         assert(a, b, true);
-        ////
         a = '#4.3, method POST with NULL: ';
         b = await myFetch({
             url: 'echo',
             method: 'POST',
             data: null
         });
+        ////
+        ////
         assert(a, b, true);
-        a = '#5.1, too many redirects: ';
-        b = await myFetch('redirect/21');
+        a = '#5.1, auto redirect: ';
+        b = await myFetch({
+            url: 'redirect/21',
+            timeout: 0
+        });
         assert(a, b, false);
-        a = '#5.2, redirected: ';
-        b = await myFetch('redirect/20');
+        a = '#5.2, auto redirected: ';
+        b = await myFetch({
+            url: 'redirect/20',
+            timeout: 0
+        });
         assert(a, b, true);
+        a = '#5.3, manual redirect: ';
+        b = await myFetch({
+            url: 'redirect/6',
+            timeout: 0,
+            redirect: 'manual'
+        });
+        assert(a, b, true);
+        // }}}
+        /***/
         /***
         a = '#4.4, method HEAD: ';
         c = httpFetch.create({
@@ -108,17 +124,21 @@ window.addEventListener('load', main = async function() {
         b = await c('https://stackoverflow.com/questions');
         console.log(b);
         /***/
+        // complete {{{
         // unlock
         state = false;
         console.log('END');
+        // }}}
     });
     /*CODE*/
+    // {{{
+    // create helpers
     var assert = function(title, res, expect)
     {
         var isError = (res instanceof Error);
         title = '%c'+title;
         if (isError) {
-            res = res.message+' [Error]';
+            res = res.message+' ['+res.id+']';
         }
         if (isError !== expect) {
             expect = 'color:green';
@@ -141,4 +161,5 @@ window.addEventListener('load', main = async function() {
     a.innerHTML = c;
     // done
     hljs.initHighlighting();
+    // }}}
 });
