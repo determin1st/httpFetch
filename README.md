@@ -58,8 +58,6 @@ connection timeout (in seconds)
   - **`redirectCount`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 maximal number of manual redirect (**disabled** because of [political dogma](https://fetch.spec.whatwg.org/)
 )
-  - **`retryCount`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
-maximal number of retries api will do (`0` is none by default, `-1` is unlimited)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
 , may be used for cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
