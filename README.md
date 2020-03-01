@@ -281,7 +281,7 @@ if (res instanceof Error)
       ///
       // incorrect API usage
       // - wrong syntax used
-      // - something's wrong with the response data
+      // - something's wrong with the request data
       // - internal problem
       ///
       break;
