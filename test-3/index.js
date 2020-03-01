@@ -7,8 +7,8 @@ window.addEventListener('load', main = async function() {
     var button  = document.querySelector('button');
     var state   = false;
     var myFetch = httpFetch.create({
-        baseUrl: 'http://46.4.19.13:30980/api/test/',
         //baseUrl: 'http://localhost/api/test/',
+        baseUrl: 'http://46.4.19.13:30980/api/test/',
         timeout: 5
     });
     // set event handler
@@ -110,19 +110,16 @@ window.addEventListener('load', main = async function() {
         });
         assert(a, b, true);
         // }}}
-        /***/
         /***
-        a = '#4.4, method HEAD: ';
-        c = httpFetch.create({
+        a = '#5.3, manual redirect: ';
+        b = await myFetch({
+            url: 'redirect/6',
             mode: 'no-cors',
-            method: 'HEAD',
-            headers: {
-                'accept-encoding': 'gzip, deflate, br',
-                'content-type': null
-            }
+            timeout: 0,
+            redirect: 'manual'
         });
-        b = await c('https://stackoverflow.com/questions');
-        console.log(b);
+        assert(a, b, true);
+        /***/
         /***/
         // complete {{{
         // unlock

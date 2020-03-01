@@ -406,7 +406,6 @@ httpFetch = do ->
 		@notNull        = false
 		@promiseReject  = false
 		@timeout        = 20
-		@retry          = null
 		@secret         = null
 		@headers        = null
 		@redirectCount  = 5
@@ -520,10 +519,24 @@ httpFetch = do ->
 	# }}}
 	FetchData = do -> # {{{
 		ResponseData = do ->
-			RequestData = !->
+			RequestData = !-> # {{{
+				@url     = null
 				@headers = null
 				@data    = null
 				@crypto  = null
+			###
+			RequestData.prototype = {
+				setUrl: (baseUrl, url) !->
+					if url
+						# check for sheme marker and
+						# prepend baseUrl if needed
+						@url = if (url.indexOf ':') == -1
+							then baseUrl + url
+							else url
+					else
+						@url = baseUrl
+			}
+			# }}}
 			return ResponseData = !->
 				@status  = 0
 				@type    = null
@@ -531,15 +544,10 @@ httpFetch = do ->
 				@data    = null
 				@crypto  = null
 				@request = new RequestData!
+			###
 		RedirectData = (count) !->
 			@count   = count
 			@current = 0
-		RetryData = !->
-			@count        = 15
-			@current      = 0
-			@expoBackoff  = true
-			@maxBackoff   = 32
-			@delay        = 1
 		###
 		return FetchData = (config) !->
 			# cumulative request configuration
@@ -552,7 +560,6 @@ httpFetch = do ->
 			@promise   = null
 			@response  = new ResponseData!
 			@redirect  = new RedirectData config.redirectCount
-			@retry     = new RetryData!
 			@aborter   = null
 			@timer     = 0
 			@timerFunc = @timeout and (force) !~>
@@ -566,7 +573,7 @@ httpFetch = do ->
 	# }}}
 	FetchHandler = (config) !-> # {{{
 		###
-		handler = (url, options, data, callback) !-> # {{{
+		handler = (data, options, callback) !-> # {{{
 			# prepare
 			res = data.response
 			sec = config.secret
@@ -632,9 +639,9 @@ httpFetch = do ->
 				# check accepted content type
 				b = h['content-type'] or ''
 				if a = options.headers.accept
-					# prefer own setting
-					# match against server
-					if b and a != b
+					# prefer own setting and
+					# loose match against server
+					if b and (b.indexOf a) != 0
 						throw new FetchError 1, 'incorrect content-type header', res
 				else
 					# use server setting
@@ -709,9 +716,12 @@ httpFetch = do ->
 				if data.fullHouse
 					res.data = d
 					d = res
-				# return it through callback or promise
+				# success
 				if callback
-					callback true, d
+					if (a = callback true, d, res.request) and a instanceof Promise
+						# retry async callback
+						a.then (retry) !->
+							handler data, options, callback if retry
 				else
 					data.promise.pending = false
 					data.promise.resolve d
@@ -731,61 +741,31 @@ httpFetch = do ->
 				# wrap unknown
 				if not e.hasOwnProperty 'id'
 					e = new FetchError 5, e.message, res
-				# complete
+				# fail
 				if callback
-					callback false, e
+					if (a = callback false, e, res.request) and a instanceof Promise
+						# retry async callback
+						a.then (retry) !->
+							handler data, options, callback if retry
 				else
 					data.promise.pending = false
 					if data.promiseReject
 						data.promise.reject e
 					else
 						data.promise.resolve e
-				/***
-				# TODO: retry request?!
-				# WARN: incorrect code below
-				while true
-					# check for incorrect response
-					if not (e instanceof FetchError) or e.status == 0
-						break
-					# check limit
-					if not (a = data.retry).count or a.current < a.count
-						break
-					# determine delay
-					if a.expoBackoff
-						# exponential backoff algorithm
-						# https://cloud.google.com/storage/docs/exponential-backoff
-						b = 2**a.current + Math.floor (1001 * Math.random!)
-						b = a.maxBackoff if b > a.maxBackoff
-					else
-						# fixed delay
-						if typeof a.delay == 'number'
-							# simple
-							b = 1000*a.delay
-						else
-							# gradual
-							if a.current <= (b = a.delay.length - 1)
-								b = 1000*a.delay[a.current]
-							else
-								b = 1000*a.delay[b]
-					# increase current
-					++a.current
-					# activate re-try
-					setTimeout handlerFunc, b
-					return
-				/***/
 			# }}}
 			# set timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
 			# invoke the Fetch API
 			if sec
-				fetch url, options
+				fetch res.request.url, options
 					.then responseHandler
 					.then decryptHandler
 					.then successHandler
 					.catch errorHandler
 			else
-				fetch url, options
+				fetch res.request.url, options
 					.then responseHandler
 					.then successHandler
 					.catch errorHandler
@@ -800,6 +780,7 @@ httpFetch = do ->
 			# create important objects
 			o = new FetchOptions!
 			d = new FetchData config
+			r = d.response.request
 			# parse arguments
 			if (e = parseArguments arguments) instanceof Error
 				# set dummy values
@@ -811,19 +792,20 @@ httpFetch = do ->
 				callback = e.1
 				# no error
 				e = false
-			# get url
-			url = if options.hasOwnProperty 'url'
-				then config.baseUrl + options.url
-				else config.baseUrl
 			# get data
 			if options.hasOwnProperty 'data'
 				data = options.data
 			# }}}
 			# INITIALIZE
-			# individual options {{{
+			# parse individual options {{{
+			# set url
+			r.setUrl config.baseUrl, options.url
 			# set timeout
 			if options.hasOwnProperty 'timeout' and (a = options.timeout) >= 0
 				d.timeout = 1000 * a
+			# set redirect count
+			if options.hasOwnProperty 'redirectCount'
+				d.redirect.count = options.redirectCount .|. 0
 			# set flags
 			for a in config.flagOptions when options.hasOwnProperty a
 				d[a] = !!options[a]
@@ -841,7 +823,7 @@ httpFetch = do ->
 			# }}}
 			# request headers and body {{{
 			# store new headers reference into request
-			d.response.request.headers = o.headers
+			r.headers = o.headers
 			# merge config
 			if config.headers
 				o.setHeaders config.headers
@@ -912,7 +894,7 @@ httpFetch = do ->
 						if b not in <[String ArrayBuffer]>
 							e = new FetchError 3, 'incorrect request raw data type'
 				# set
-				o.body = d.response.request.data = data
+				o.body = r.data = data
 			else
 				# NO DATA! NO BODY! NO HEAD!
 				# remove content-type header
@@ -928,23 +910,6 @@ httpFetch = do ->
 			# set promise
 			if not callback
 				d.promise = newPromise d.aborter
-			/*** TODO: set retry
-			# copy configuration
-			a = d.retry
-			if b = config.retry
-				for c of a
-					a[c] = b[c]
-			# copy user options
-			if b = options.retry
-				if typeof! b == 'Object'
-					for c of a when b.hasOwnProperty c
-						a[c] = b[c]
-				else
-					a.count = b
-			# fix values
-			a.current = 0
-			a.maxBackoff = 1000 * a.maxBackoff
-			/***/
 			# }}}
 			# check for instant error {{{
 			if e
@@ -970,16 +935,21 @@ httpFetch = do ->
 					# successfully encrypted
 					# store properly
 					o.body = data.data = e
-					d.response.request.crypto = data
+					r.crypto = data
 					# check aborted
 					if o.signal.aborted
 						throw new FetchError 4, 'aborted programmatically'
 					# invoke handler
-					handler url, o, d, callback
+					handler d, o, callback
 				.catch (e) !->
-					# failed to encrypt
-					if callback
-						callback false, e
+					# wrap encryption errors
+					if not e.hasOwnProperty 'id'
+						e = new FetchError 2, 'encryption failed, '+e.message
+					# fail
+					if (a = callback false, e, res.request) and a instanceof Promise
+						# retry async callback
+						a.then (retry) !->
+							handler data, options, callback if retry
 					else
 						d.promise.pending = false
 						if d.promiseReject
@@ -988,7 +958,7 @@ httpFetch = do ->
 							d.promise.resolve e
 			else
 				# invoke handler
-				handler url, o, d, callback
+				handler d, o, callback
 			# done
 			return if callback
 				then d.aborter

@@ -377,7 +377,6 @@ httpFetch = function(){
     this.notNull = false;
     this.promiseReject = false;
     this.timeout = 20;
-    this.retry = null;
     this.secret = null;
     this.headers = null;
     this.redirectCount = 5;
@@ -477,13 +476,23 @@ httpFetch = function(){
     return E;
   }();
   FetchData = function(){
-    var ResponseData, RedirectData, RetryData, FetchData;
+    var ResponseData, RedirectData, FetchData;
     ResponseData = function(){
       var RequestData, ResponseData;
       RequestData = function(){
+        this.url = null;
         this.headers = null;
         this.data = null;
         this.crypto = null;
+      };
+      RequestData.prototype = {
+        setUrl: function(baseUrl, url){
+          if (url) {
+            this.url = url.indexOf(':') === -1 ? baseUrl + url : url;
+          } else {
+            this.url = baseUrl;
+          }
+        }
       };
       return ResponseData = function(){
         this.status = 0;
@@ -498,13 +507,6 @@ httpFetch = function(){
       this.count = count;
       this.current = 0;
     };
-    RetryData = function(){
-      this.count = 15;
-      this.current = 0;
-      this.expoBackoff = true;
-      this.maxBackoff = 32;
-      this.delay = 1;
-    };
     return FetchData = function(config){
       var this$ = this;
       this.status200 = config.status200;
@@ -515,7 +517,6 @@ httpFetch = function(){
       this.promise = null;
       this.response = new ResponseData();
       this.redirect = new RedirectData(config.redirectCount);
-      this.retry = new RetryData();
       this.aborter = null;
       this.timer = 0;
       this.timerFunc = this.timeout && function(force){
@@ -530,7 +531,7 @@ httpFetch = function(){
   }();
   FetchHandler = function(config){
     var handler;
-    handler = function(url, options, data, callback){
+    handler = function(data, options, callback){
       var res, sec, responseHandler, decryptHandler, successHandler, errorHandler;
       res = data.response;
       sec = config.secret;
@@ -576,7 +577,7 @@ httpFetch = function(){
         }
         b = h['content-type'] || '';
         if (a = options.headers.accept) {
-          if (b && a !== b) {
+          if (b && b.indexOf(a) !== 0) {
             throw new FetchError(1, 'incorrect content-type header', res);
           }
         } else {
@@ -637,13 +638,20 @@ httpFetch = function(){
           d = res;
         }
         if (callback) {
-          callback(true, d);
+          if ((a = callback(true, d, res.request)) && a instanceof Promise) {
+            a.then(function(retry){
+              if (retry) {
+                handler(data, options, callback);
+              }
+            });
+          }
         } else {
           data.promise.pending = false;
           data.promise.resolve(d);
         }
       };
       errorHandler = function(e){
+        var a;
         if (options.signal.aborted) {
           e = data.timeout && !data.timer
             ? new FetchError(0, 'connection timed out', res)
@@ -656,7 +664,13 @@ httpFetch = function(){
           e = new FetchError(5, e.message, res);
         }
         if (callback) {
-          callback(false, e);
+          if ((a = callback(false, e, res.request)) && a instanceof Promise) {
+            a.then(function(retry){
+              if (retry) {
+                handler(data, options, callback);
+              }
+            });
+          }
         } else {
           data.promise.pending = false;
           if (data.promiseReject) {
@@ -665,55 +679,23 @@ httpFetch = function(){
             data.promise.resolve(e);
           }
         }
-        /***
-        # TODO: retry request?!
-        # WARN: incorrect code below
-        while true
-        	# check for incorrect response
-        	if not (e instanceof FetchError) or e.status == 0
-        		break
-        	# check limit
-        	if not (a = data.retry).count or a.current < a.count
-        		break
-        	# determine delay
-        	if a.expoBackoff
-        		# exponential backoff algorithm
-        		# https://cloud.google.com/storage/docs/exponential-backoff
-        		b = 2**a.current + Math.floor (1001 * Math.random!)
-        		b = a.maxBackoff if b > a.maxBackoff
-        	else
-        		# fixed delay
-        		if typeof a.delay == 'number'
-        			# simple
-        			b = 1000*a.delay
-        		else
-        			# gradual
-        			if a.current <= (b = a.delay.length - 1)
-        				b = 1000*a.delay[a.current]
-        			else
-        				b = 1000*a.delay[b]
-        	# increase current
-        	++a.current
-        	# activate re-try
-        	setTimeout handlerFunc, b
-        	return
-        /***/
       };
       if (data.timeout) {
         data.timer = setTimeout(data.timerFunc, data.timeout);
       }
       if (sec) {
-        fetch(url, options).then(responseHandler).then(decryptHandler).then(successHandler)['catch'](errorHandler);
+        fetch(res.request.url, options).then(responseHandler).then(decryptHandler).then(successHandler)['catch'](errorHandler);
       } else {
-        fetch(url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+        fetch(res.request.url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
       }
     };
     this.config = config;
     this.api = new Api(this);
     this.fetch = function(){
-      var o, d, e, options, callback, url, data, a, i$, ref$, len$, b, c;
+      var o, d, r, e, options, callback, data, a, i$, ref$, len$, b, c;
       o = new FetchOptions();
       d = new FetchData(config);
+      r = d.response.request;
       if ((e = parseArguments(arguments)) instanceof Error) {
         options = {};
         callback = false;
@@ -722,14 +704,15 @@ httpFetch = function(){
         callback = e[1];
         e = false;
       }
-      url = options.hasOwnProperty('url')
-        ? config.baseUrl + options.url
-        : config.baseUrl;
       if (options.hasOwnProperty('data')) {
         data = options.data;
       }
+      r.setUrl(config.baseUrl, options.url);
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
+      }
+      if (options.hasOwnProperty('redirectCount')) {
+        d.redirect.count = options.redirectCount | 0;
       }
       for (i$ = 0, len$ = (ref$ = config.flagOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];
@@ -750,7 +733,7 @@ httpFetch = function(){
       } else if (options.hasOwnProperty('data')) {
         o.method = 'POST';
       }
-      d.response.request.headers = o.headers;
+      r.headers = o.headers;
       if (config.headers) {
         o.setHeaders(config.headers);
       }
@@ -809,7 +792,7 @@ httpFetch = function(){
             }
           }
         }
-        o.body = d.response.request.data = data;
+        o.body = r.data = data;
       } else {
         delete o.headers['content-type'];
       }
@@ -820,23 +803,6 @@ httpFetch = function(){
       if (!callback) {
         d.promise = newPromise(d.aborter);
       }
-      /*** TODO: set retry
-      # copy configuration
-      a = d.retry
-      if b = config.retry
-      	for c of a
-      		a[c] = b[c]
-      # copy user options
-      if b = options.retry
-      	if typeof! b == 'Object'
-      		for c of a when b.hasOwnProperty c
-      			a[c] = b[c]
-      	else
-      		a.count = b
-      # fix values
-      a.current = 0
-      a.maxBackoff = 1000 * a.maxBackoff
-      /***/
       if (e) {
         if (callback) {
           callback(false, e);
@@ -855,14 +821,22 @@ httpFetch = function(){
         data = config.secret.encrypt(o.body, true);
         data.data.then(function(e){
           o.body = data.data = e;
-          d.response.request.crypto = data;
+          r.crypto = data;
           if (o.signal.aborted) {
             throw new FetchError(4, 'aborted programmatically');
           }
-          handler(url, o, d, callback);
+          handler(d, o, callback);
         })['catch'](function(e){
-          if (callback) {
-            callback(false, e);
+          var a;
+          if (!e.hasOwnProperty('id')) {
+            e = new FetchError(2, 'encryption failed, ' + e.message);
+          }
+          if ((a = callback(false, e, res.request)) && a instanceof Promise) {
+            a.then(function(retry){
+              if (retry) {
+                handler(data, options, callback);
+              }
+            });
           } else {
             d.promise.pending = false;
             if (d.promiseReject) {
@@ -873,7 +847,7 @@ httpFetch = function(){
           }
         });
       } else {
-        handler(url, o, d, callback);
+        handler(d, o, callback);
       }
       return callback
         ? d.aborter

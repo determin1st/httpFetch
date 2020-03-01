@@ -54,6 +54,11 @@ flag
 flag
   - **`timeout`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
 connection timeout (in seconds)
+  - **`redirectCount`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
+maximal number of manual redirect (**disabled** because of [political dogma](https://fetch.spec.whatwg.org/)
+)
+  - **`retryCount`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
+maximal number of retries api will do (`0` is none by default, `-1` is unlimited)
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
 , may be used for cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
@@ -89,7 +94,7 @@ with request headers
 var res = await httpFetch('resource');
 if (res instanceof Error)
 {
-  // error
+  // FetchError
 }
 else if (!res)
 {
@@ -106,7 +111,7 @@ httpFetch('resource')
   .then(function(res) {
     if (res instanceof Error)
     {
-      // error
+      // FetchError
     }
     else if (!res)
     {
@@ -131,7 +136,7 @@ httpFetch('resource', function(ok, res) {
   }
   else
   {
-    // error
+    // FetchError
   }
 });
 ```
@@ -141,11 +146,11 @@ httpFetch('resource', function(ok, res) {
 var res = await soFetch('resource');
 if (res instanceof Error)
 {
-  // error, empty response, JSON NULL
+  // FetchError, empty response, JSON NULL
 }
 else
 {
-  // success, JSON falsy values but JSON NULL)
+  // success, JSON falsy values but JSON NULL
 }
 ```
 #### Promise
@@ -154,11 +159,11 @@ soFetch('resource')
   .then(function(res) {
     if (res instanceof Error)
     {
-      // error, empty response, JSON NULL
+      // FetchError, empty response, JSON NULL
     }
     else
     {
-      // success, JSON falsy values but JSON NULL)
+      // success, JSON falsy values but JSON NULL
     }
   });
 ```
@@ -167,11 +172,11 @@ soFetch('resource')
 soFetch('resource', function(ok, res) {
   if (ok)
   {
-    // success, JSON falsy values but JSON NULL)
+    // success, JSON falsy values but JSON NULL
   }
   else
   {
-    // error, empty response, JSON NULL
+    // FetchError, empty response, JSON NULL
   }
 });
 ```
@@ -191,7 +196,7 @@ oFetch('resource')
   })
   .catch(function(err)
   {
-    // error
+    // FetchError
   });
 ```
 #### async/await
@@ -210,7 +215,7 @@ try
 }
 catch (err)
 {
-  // error
+  // FetchError
 }
 ```
 
@@ -241,10 +246,12 @@ catch (err)
   - when **`JSON NULL`** and **`notNull`**
   - ...
 
-## FetchError id
+## FetchError
 ```javascript
 if (res instanceof Error)
 {
+  // checking FetchError identifier allows to
+  // determine category of the error:
   switch (res.id)
   {
     case 0:
@@ -255,6 +262,8 @@ if (res instanceof Error)
       // - unacceptable HTTP STATUS
       // - etc
       ///
+      console.log(res.message);   // error details
+      console.log(res.response);  // request + response data, full house
       break;
     case 1:
       ///
@@ -272,8 +281,8 @@ if (res instanceof Error)
     case 3:
       ///
       // incorrect API usage
-      // - wrong/unknown syntax used
-      // - wrong input
+      // - wrong syntax used
+      // - something's wrong with the response data
       // - internal problem
       ///
       break;
@@ -286,7 +295,7 @@ if (res instanceof Error)
       break;
     case 5:
       ///
-      // unknown errors
+      // unclassified
       ///
       break;
   }
@@ -294,10 +303,47 @@ if (res instanceof Error)
 ```
 
 
-## New instance syntax
+## Retry syntax
+#### async/await
+```javascript
+var count = 5;
+```
+#### Promise
+```javascript
+```
+#### async callback
+```javascript
+var count = 5;
+httpFetch(url, async function(ok, res) {
+  if (ok)
+  {
+    // success
+  }
+  else
+  {
+    // check for specific error
+    if (res.id === 0)
+    {
+      // check counter
+      if (--count)
+      {
+        // wait for some time
+        await delay(1000);
+        // retry
+        return true;
+      }
+    }
+  }
+  return false;// finish, don't retry
+});
+```
+
+
+## New instance
 ### `httpFetch.create(config)`
 #### Parameters
 - **`config`** - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+with: ...
 #### Returns
 [instanceof](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof)
 [`httpFetch`](https://github.com/determin1st/httpFetch)
@@ -382,7 +428,7 @@ var soFetch = httpFetch.create({
 
 
 ## Advanced syntax
-## Content-Type shortcuts
+### shortcut methods
 #### `httpFetch.json`
 - `application/json` (**the default**)
 #### `httpFetch.text`
@@ -437,7 +483,6 @@ else {
 ## TODO
 #### Download
 #### Streams
-#### Retry
 #### Resumable
 #### Loader
 
