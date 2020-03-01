@@ -13,6 +13,7 @@ wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs
 - [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request (step on yourself).
 - [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): upload single image file with some metadata and show it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) handling).
 - [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): do a [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted messages (remote session + secret)([FireFox only](https://en.wikipedia.org/wiki/Firefox)).
+- [**retry redirects**](http://raw.githack.com/determin1st/httpFetch/master/test-8/index.html): retry syntax and custom redirects (manual is wasted by spec).
 
 
 ## Base syntax
