@@ -13,7 +13,7 @@ wrapper for the browser ([experimental](https://developer.mozilla.org/en-US/docs
 - [**self cancellation**](http://raw.githack.com/determin1st/httpFetch/master/test-5/index.html): if request is running - cancel it, then, make a new request (step on yourself).
 - [**image upload**](http://raw.githack.com/determin1st/httpFetch/master/test-6/index.html): upload single image file with some metadata and show it ([FormData](https://developer.mozilla.org/en-US/docs/Web/API/FormData) handling).
 - [**encryption**](http://raw.githack.com/determin1st/httpFetch/master/test-7/index.html): do a [handshake](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange) and echo encrypted messages (remote session + secret)([FireFox only](https://en.wikipedia.org/wiki/Firefox)).
-- [**retry redirects**](http://raw.githack.com/determin1st/httpFetch/master/test-8/index.html): retry syntax and custom redirects (manual is wasted by spec).
+- [**retry redirects**](http://raw.githack.com/determin1st/httpFetch/master/test-8/index.html): retry syntax and custom redirects (redirect:manual is wasted by spec).
 
 
 ## Base syntax
@@ -24,40 +24,45 @@ with:
   ---
   basic
   - **`url`** - request destination [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-, reference to the web resource (prefixed by **`baseUrl`**)
+, reference to the web resource (prefixed by config's **`baseUrl`**).
   - **`data`**(*optional*) - [content](https://developer.mozilla.org/en-US/docs/Glossary/Type)
-to be sent as the request body
+to be sent as the request body.
   ---
-  native [fetch()](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
-  - **`method`**(*optional*) - request method [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-  - **`mode`**(*optional*) - fetch mode [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-  - **`credentials`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-of a set
-  - **`cache`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-of a set
-  - **`redirect`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-of a [set](https://stackoverflow.com/a/42717388/7128889)
-  - **`referrer`**(*optional*) - [url](https://developer.mozilla.org/en-US/docs/Glossary/URL) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-  - **`referrerPolicy`**(*optional*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-of a [set](https://hacks.mozilla.org/2016/03/referrer-and-cache-control-apis-for-fetch/)
-  - **`integrity`**(*optional*) - [subresource integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
-  - **`keepalive`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
-flag
+  optional, [native fetch](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch)
+  - **`method`**(*detected automatically*) - request method [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String).
+  - **`mode`**(*`cors`*) - fetch mode [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String).
+  - **`credentials`**(*`same-origin`*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a set.
+  - **`cache`**(*`default`*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a set.
+  - **`redirect`**(*`follow`*) - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a [set](https://stackoverflow.com/a/42717388/7128889).
+`manual` has been broken by the spec, check tests for example solution.
+  - **`referrer`** - [url](https://developer.mozilla.org/en-US/docs/Glossary/URL) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String).
+  - **`referrerPolicy`** - [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)
+of a [set](https://hacks.mozilla.org/2016/03/referrer-and-cache-control-apis-for-fetch/).
+  - **`integrity`** - [subresource integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) [string](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String).
+  - **`keepalive`**(*`false`*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag.
   ---
-  advanced
-  - **`status200`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
-flag
-  - **`fullHouse`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
-flag
+  optional, advanced
+  - **`status200`**(*`true`*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag, only the response with HTTP STATUS 200 OK is considered success.
+  - **`fullHouse`**(*`false`*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag, the result will include all response data and headers.
   - **`notNull`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
-flag
+flag, the result will not contain `null` or empty response.
   - **`promiseReject`**(*optional*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
-flag
+flag, promise reject will be used to report the Error.
   - **`timeout`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
-connection timeout (in seconds)
+connection timeout (in seconds).
   - **`redirectCount`**(*optional*) - [integer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number)
-maximal number of manual redirect (**disabled** because of [political dogma](https://fetch.spec.whatwg.org/)
-)
+maximal number of manual redirect (**non-functional** because of [spec](https://fetch.spec.whatwg.org/)
+).
+  - **`parseResponse`**(*`true`*) - [boolean](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean)
+flag, if the response headers must be analyzed and body parsed to fit proper content type.
+Raw [Response](https://developer.mozilla.org/en-US/docs/Web/API/Response)
+is returned otherwise.
   - **`aborter`**(*optional*) - an [abort controller](https://developer.mozilla.org/en-US/docs/Web/API/AbortController)
 , may be used for cancellation
   - **`headers`**(*optional*) - an [object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
@@ -71,6 +76,20 @@ with request headers
 [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) (not callback) or
 [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) (callback)
 
+
+## Try it
+inject into HTML:
+```html
+<script src="https://cdn.jsdelivr.net/npm/http-fetch-json@1/httpFetch.js"></script>
+```
+or, get the code:
+```bash
+# with GIT
+git clone https://github.com/determin1st/httpFetch
+
+# with NPM
+npm i http-fetch-json
+```
 
 ## Short syntax
 ### `httpFetch(url[, callback(ok, res)])`
@@ -87,7 +106,7 @@ with request headers
 
 
 ## Result syntax
-### Positive style (the default)
+### Optimistic style (the default)
 #### async/await
 ```javascript
 var res = await httpFetch('resource');
@@ -139,7 +158,7 @@ httpFetch('resource', function(ok, res) {
   }
 });
 ```
-### Positive style, when `notNull`
+### Optimistic style, when `notNull`
 #### async/await
 ```javascript
 var res = await soFetch('resource');
@@ -162,7 +181,7 @@ soFetch('resource')
     }
     else
     {
-      // success, JSON falsy values but JSON NULL
+      // success, JSON falsy values but not JSON NULL
     }
   });
 ```
@@ -171,7 +190,7 @@ soFetch('resource')
 soFetch('resource', function(ok, res) {
   if (ok)
   {
-    // success, JSON falsy values but JSON NULL
+    // success, JSON falsy values but not JSON NULL
   }
   else
   {
@@ -179,7 +198,7 @@ soFetch('resource', function(ok, res) {
   }
 });
 ```
-### Negative style, when `promiseReject`
+### Pessimistic style, when `promiseReject`
 #### Promise
 ```javascript
 oFetch('resource')
@@ -216,6 +235,10 @@ catch (err)
 {
   // FetchError
 }
+```
+### Pessimistic style, when `promiseReject` and `notNull`
+#### Promise
+```javascript
 ```
 
 
@@ -305,14 +328,15 @@ if (res instanceof Error)
 ## Retry syntax
 #### async/await
 ```javascript
-var count = 5;
 ```
 #### Promise
 ```javascript
 ```
 #### async callback
 ```javascript
+// retry limit
 var count = 5;
+
 httpFetch(url, async function(ok, res) {
   if (ok)
   {
@@ -320,7 +344,7 @@ httpFetch(url, async function(ok, res) {
   }
   else
   {
-    // check for specific error
+    // retry for specific error category
     if (res.id === 0)
     {
       // check counter
@@ -355,74 +379,6 @@ if ((a instanceof httpFetch) &&
 {
   // true!
 }
-```
-```javascript
-/**
-* This section may be safely skipped
-*/
-var soFetch = httpFetch.create({
-  ///
-  // to shorten url parameter in future invocations,
-  // that is super-handy option
-  //
-  baseUrl: 'http://localhost:8080/api/', // '' by default
-  ///
-  // same as in fetch() init parameter
-  // https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
-  //
-  mode: 'same-origin',            // 'cors'
-  credentials:  'include',        // 'same-origin'
-  cache: 'no-store',              // 'default'
-  redirect: 'manual',             // 'follow'
-  referrer: 'http://example.fake',// ''
-  referrerPolicy: 'same-origin',  // ''
-  integrity: knownSRI,            // ''
-  keepalive: true,                // false
-  ///
-  // when your API works solid and optimal,
-  // there is nothing special in http responses and
-  // only "HTTP 200 OK" is used as a positive result
-  // (free from transfer / internal server problems)
-  // but with sloppy and external api,
-  // which uses statuses for data exchange,
-  // setting this option false may help to handle those cases
-  //
-  status200: false, // true by default
-  ///
-  // to get everything,
-  // both request and reponse with headers and stuff,
-  // this option may be set true
-  //
-  fullHouse: true, // false by default
-  ///
-  // empty response (without content body) may be identified as `null`,
-  // but if remote API is designed without empty responses
-  // it may be groupped with errors, for convenience
-  //
-  notNull: true, // false by default
-  ///
-  // Promise will resolve everything by default,
-  // if try/catch or .catch() constructs are used to handle the result,
-  // this option must be enabled
-  //
-  promiseReject: true, // false by default
-  ///
-  // setting connection timeout to zero,
-  // will make request wait forever (until server response)
-  //
-  timeout: 0, // 20 by default
-  ///
-  // custom request headers
-  //
-  headers: {
-    // when response arrives, fetch handler will try to parse it
-    // strictly, according to accepted content type:
-    accept: 'application/json',
-    // remote API may require specific authorization headers set,
-    // exact names and formats depend on implementation:
-    authorization: accessToken
-  }
-});
 ```
 
 
@@ -468,13 +424,13 @@ res = await httpFetch(url+'/more/params', params);
 // DO unified:
 res = await httpFetch(url, Object.assign(params, {more: "params"}));
 
-// by default, any HTTP status is considered error,
-// except HTTP 200 OK:
+// any HTTP status, except 200 OK,
+// is considered error (by default):
 if (res instanceof Error) {
-  console.log(res.status);// not 200
+  console.log(res.status);
 }
 else {
-  console.log(res.status);// always 200
+  console.log(res.status);// 200
 }
 ```
 
@@ -485,16 +441,6 @@ else {
 #### Resumable
 #### Loader
 
-
-## Try
-CDN:
-```html
-<script src="https://cdn.jsdelivr.net/npm/http-fetch-json@1/httpFetch.js"></script>
-```
-NPM:
-```bash
-npm i http-fetch-json
-```
 
 ## Links
 https://javascript.info/fetch-api
