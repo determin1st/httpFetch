@@ -23,7 +23,7 @@ inject into HTML:
 <script src="https://cdn.jsdelivr.net/npm/http-fetch-json@2/httpFetch.js"></script>
 ```
 get the code:
-```
+```bash
 # with GIT (lastest)
 git clone https://github.com/determin1st/httpFetch
 # with NPM (stable)
@@ -40,6 +40,7 @@ npm i http-fetch-json
   ---
   <details open>
   <summary>basic</summary>
+
   | name       | type        | default | description |
   | :---       | :---:       | :---:   | :---        |
   | **`url`**  | [string][2] |         | reference to the local or remote web resource (auto-prefixed with **`baseUrl`** if doesn't contain [sheme](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier)) |
@@ -48,6 +49,7 @@ npm i http-fetch-json
   ---
   <details>
   <summary>native fetch</summary>
+
   | name                 | type         | default       | description |
   | :---                 | :---:        | :---:         | :---        |
   | **`method`**         | [string][2]  |               | [HTTP request method][101] (detected automatically) |
@@ -63,6 +65,7 @@ npm i http-fetch-json
   ---
   <details>
   <summary>advanced</summary>
+
   | name                | type         | default | description |
   | :---                | :---:        | :---:   | :---        |
   | **`status200`**     | [boolean][4] | `true`  | to consider only [HTTP STATUS 200 OK][109] |
@@ -88,6 +91,7 @@ npm i http-fetch-json
 ### Optimistic style (the default)
 <details>
   <summary>async/await</summary>
+
   ```javascript
   var res = await httpFetch('/resource');
   if (res instanceof Error)
@@ -106,6 +110,7 @@ npm i http-fetch-json
 </details>
 <details>
   <summary>promise</summary>
+
   ```javascript
   httpFetch('/resource')
     .then(function(res) {
@@ -126,6 +131,7 @@ npm i http-fetch-json
 </details>
 <details>
   <summary>callback</summary>
+
   ```javascript
   httpFetch('/resource', function(ok, res) {
     if (ok && res)
@@ -151,6 +157,7 @@ var oFetch = httpFetch.create({
 ```
 <details>
   <summary>async/await</summary>
+
   ```javascript
   var res = await oFetch('/resource');
   if (res instanceof Error)
@@ -165,6 +172,7 @@ var oFetch = httpFetch.create({
 </details>
 <details>
   <summary>promise</summary>
+
   ```javascript
   oFetch('/resource')
     .then(function(res) {
@@ -181,6 +189,7 @@ var oFetch = httpFetch.create({
 </details>
 <details>
   <summary>callback</summary>
+
   ```javascript
   oFetch('resource', function(ok, res) {
     if (ok)
@@ -202,6 +211,7 @@ var pFetch = httpFetch.create({
 ```
 <details>
   <summary>async/await</summary>
+
   ```javascript
   try
   {
@@ -223,6 +233,7 @@ var pFetch = httpFetch.create({
 </details>
 <details>
   <summary>promise</summary>
+
   ```javascript
   oFetch('/resource')
     .then(function(res) {
@@ -244,6 +255,7 @@ var pFetch = httpFetch.create({
 ### Pessimistic, when `promiseReject` and `notNull`
 <details>
   <summary>async/await</summary>
+
   ```javascript
   try
   {
@@ -257,6 +269,7 @@ var pFetch = httpFetch.create({
 </details>
 <details>
   <summary>promise</summary>
+
   ```javascript
   oFetch('/resource')
     .then(function(res) {
@@ -300,6 +313,7 @@ var pFetch = httpFetch.create({
 ## FetchError
 <details>
   <summary>id</summary>
+
   ```javascript
   if (res instanceof Error)
   {
@@ -359,6 +373,7 @@ var pFetch = httpFetch.create({
 # Advanced
 <details>
   <summary>httpFetch.create</summary>
+
   #### Description
   Creates a new [instance of][116] of [`httpFetch`][0]
   #### Syntax
@@ -379,6 +394,7 @@ var pFetch = httpFetch.create({
 </details>
 <details>
   <summary>httpFetch.form</summary>
+
   #### Description
   [httpFetch][0] operates with [JSON][111] content by default.
   This shortcut method allows to send a `POST` request
@@ -435,14 +451,12 @@ var pFetch = httpFetch.create({
   console.log(res);// 6
   ```
 </details>
-<details>
-  <summary>httpFetch.handshake</summary>
-</details>
 
 
 ## KISS API
 <details>
   <summary>Use POST method (Keep It Simple Stupid)</summary>
+
   ```javascript
   // instead of GET method, you may POST:
   res = await httpFetch(url, {});       // EMPTY OBJECT
@@ -517,7 +531,5 @@ https://javascript.info/fetch-api
 [115]: https://tools.ietf.org/html/rfc2616#section-10.2
 [116]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof
 [117]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/enctype
-
-
 
 
