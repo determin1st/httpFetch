@@ -519,7 +519,10 @@ npm i http-fetch-json
 
 ## Links
 https://javascript.info/fetch-api
+
 https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
+
+
 
 [0]: https://github.com/determin1st/httpFetch
 [1]: https://developer.mozilla.org/en-US/docs/Glossary/Type
