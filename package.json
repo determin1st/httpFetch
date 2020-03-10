@@ -19,8 +19,10 @@
     "cancellation",
     "retry",
     "upload",
+    "download",
     "FormData",
-    "crypto"
+    "crypto",
+    "loader"
   ],
   "main": "httpFetch.js",
   "version": "2.0.1"

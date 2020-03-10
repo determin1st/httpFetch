@@ -36,10 +36,16 @@ npm i http-fetch-json
 ### `httpFetch(url[, data[, callback(ok, res)]])`
 ### `httpFetch(url[, callback(ok, res)])`
 #### Parameters
+<style>
+  summary {font-size:1.2em;font-weight:bold;color:skyblue;}
+</style>
+
 - **`options`** - [object][3] with:
   ---
   <details open>
-  <summary>basic</summary>
+  <summary>
+  #### basic
+  </summary>
 
   | name       | type        | default | description |
   | :---       | :---:       | :---:   | :---        |
