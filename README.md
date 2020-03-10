@@ -36,16 +36,10 @@ npm i http-fetch-json
 ### `httpFetch(url[, data[, callback(ok, res)]])`
 ### `httpFetch(url[, callback(ok, res)])`
 #### Parameters
-<style>
-  summary {font-size:1.2em;font-weight:bold;color:skyblue;}
-</style>
-
 - **`options`** - [object][3] with:
   ---
   <details open>
-  <summary>
-  #### basic
-  </summary>
+  <summary>basic</summary>
 
   | name       | type        | default | description |
   | :---       | :---:       | :---:   | :---        |
@@ -97,7 +91,7 @@ npm i http-fetch-json
 
 
 ## Result
-### Optimistic style (the default)
+##### Optimistic style (the default)
 <details>
   <summary>async/await</summary>
 
@@ -159,7 +153,7 @@ npm i http-fetch-json
   ```
 </details>
 
-### Optimistic, when `notNull`
+##### Optimistic, when `notNull`
 <details>
   <summary>custom instance</summary>
 
@@ -218,7 +212,7 @@ npm i http-fetch-json
 ```
 </details>
 
-### Pessimistic style, when `promiseReject`
+##### Pessimistic style, when `promiseReject`
 <details>
   <summary>custom instance</summary>
 
@@ -272,7 +266,7 @@ npm i http-fetch-json
   ```
 </details>
 
-### Pessimistic, when `promiseReject` and `notNull`
+##### Pessimistic, when `promiseReject` and `notNull`
 <details>
   <summary>custom instance</summary>
 
@@ -562,4 +556,7 @@ https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
 [116]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof
 [117]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/enctype
 
+<style type="text/css">
+  summary {font-size:1.2em;font-weight:bold;color:skyblue;}
+</style>
 
