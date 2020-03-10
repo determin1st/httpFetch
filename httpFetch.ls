@@ -47,11 +47,11 @@ httpFetch = do ->
 		if (typeof crypto == 'undefined') or not crypto.subtle
 			console.log 'httpFetch: Web Crypto API is not available'
 			return null
-		# helplers
+		# helpers
 		CS = crypto.subtle
 		nullFunc = -> null
 		bufToHex = do -> # {{{
-			# create convertion array
+			# create conversion array
 			hex = []
 			i = -1
 			n = 256
@@ -276,6 +276,10 @@ httpFetch = do ->
 							then @
 							else null
 					# }}}
+					get: -> # {{{
+						# serialize and return
+						return apiCrypto.bufToBase64 @secret
+					# }}}
 				}
 				# factory
 				return (secret, manager) ->>
@@ -402,13 +406,14 @@ httpFetch = do ->
 		@keepalive      = null
 		###
 		@status200      = true
-		@fullHouse      = false
 		@notNull        = false
+		@fullHouse      = false
 		@promiseReject  = false
 		@timeout        = 20
 		@secret         = null
 		@headers        = null
 		@redirectCount  = 5
+		@parseResponse  = true
 	###
 	FetchConfig.prototype = {
 		fetchOptions: [
@@ -428,9 +433,10 @@ httpFetch = do ->
 		]
 		flagOptions: [
 			'status200'
-			'fullHouse'
 			'notNull'
+			'fullHouse'
 			'promiseReject'
+			'parseResponse'
 		]
 		setOptions: (o) !->
 			# set native
@@ -496,7 +502,7 @@ httpFetch = do ->
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
-			E = (id, message, res) !->
+			FetchError = (id, message, res) !->
 				@id       = id
 				@message  = message
 				@response = res or null
@@ -505,7 +511,7 @@ httpFetch = do ->
 					else 0
 				Error.captureStackTrace @, FetchError
 		else
-			E = (id, message, res) !->
+			FetchError = (id, message, res) !->
 				@id       = id
 				@message  = message
 				@response = res or null
@@ -514,8 +520,8 @@ httpFetch = do ->
 					else 0
 				@stack    = (new Error message).stack
 		###
-		E.prototype = Error.prototype
-		return E
+		FetchError.prototype = Error.prototype
+		return FetchError
 	# }}}
 	FetchData = do -> # {{{
 		ResponseData = do ->
@@ -555,6 +561,7 @@ httpFetch = do ->
 			@fullHouse     = config.fullHouse
 			@notNull       = config.notNull
 			@promiseReject = config.promiseReject
+			@parseResponse = config.parseResponse
 			@timeout       = 1000 * config.timeout
 			# controllers and data
 			@promise   = null
@@ -562,7 +569,7 @@ httpFetch = do ->
 			@redirect  = new RedirectData config.redirectCount
 			@aborter   = null
 			@timer     = 0
-			@timerFunc = @timeout and (force) !~>
+			@timerFunc = (force) !~>
 				if force
 					# stop timer
 					clearTimeout @timer
@@ -581,15 +588,14 @@ httpFetch = do ->
 				# terminate timer
 				if data.timer
 					data.timerFunc true
-				# set status
+				# set response status
 				res.status = r.status
-				# set headers
+				# set response headers
 				res.headers = h = {}
 				a = r.headers.entries!
 				while not (b = a.next!).done
 					h[b.value.0.toLowerCase!] = b.value.1
-				# check the OK status,
-				# OK status is any status in the range [200-299]
+				# check ok
 				if not r.ok
 					# handle redirection
 					# RFC7231§6.4: The 3xx (Redirection) class of status code indicates
@@ -615,10 +621,10 @@ httpFetch = do ->
 								throw new FetchError 0, 'too many redirects', res
 						# follow location
 						# ...
-						throw new FetchError 3, 'not implemented :(', res
-					# fail
-					throw new FetchError 0, 'connection failed', res
-				# enforce HTTP status 200 (KISS API)
+						throw new FetchError 3, 'not implemented yet :(', res
+					# unsuccessful status (not in range 200-299)
+					throw new FetchError 0, 'unsuccessful response status', res
+				# check HTTP status 200 (KISS API)
 				if r.status != 200 and data.status200
 					throw new FetchError 0, 'HTTP status 200 required', res
 				# set type and
@@ -628,19 +634,22 @@ httpFetch = do ->
 					if sec
 						# can't access data === can't decrypt
 						throw new FetchError 1, 'encrypted opaque response', res
-					# return as is,
-					# the opaque Response object may be consumed by other APIs
+					# an opaque Response object may be consumed by other APIs,
+					# return it as is
 					return r
 				# encrypted request enforce encrypted response and
 				# content is handled as binary..
 				if sec
 					return r.arrayBuffer!
+				# dont parse the response
+				if not data.parseResponse
+					return r
 				###
 				# check accepted content type
 				b = h['content-type'] or ''
 				if a = options.headers.accept
 					# prefer own setting and
-					# loose match against server
+					# loose match it against server
 					if b and (b.indexOf a) != 0
 						throw new FetchError 1, 'incorrect content-type header', res
 				else
@@ -681,10 +690,11 @@ httpFetch = do ->
 				a = sec.decrypt buf, res.request.crypto.params
 				# wait
 				return a.data.then (d) ->
-					# check decrypted data
+					# check decryption successful
 					if (a.data = d) == null
-						sec.manager 'fail'
-						throw new FetchError 2, 'decryption failed', res
+						d = new FetchError 2, 'decryption failed', res
+						sec.manager 'fail', d
+						throw d
 					# store
 					res.crypto = a
 					# update secret
@@ -705,13 +715,15 @@ httpFetch = do ->
 					return c
 			# }}}
 			successHandler = (d) !-> # {{{
-				# check for empty response
-				if data.notNull and \
-				   ((a = typeof! d) == 'Null' or \
-				    a == 'Blob' and a.size == 0 or \
-				    a == 'ArrayBuffer' and a.byteLength == 0)
-					###
-					throw new FetchError 1, 'empty response', res
+				# detect unified null
+				switch typeof! d
+				case 'Blob'
+					d = null if d.size == 0
+				case 'ArrayBuffer'
+					d = null if d.byteLength == 0
+				# prevent null
+				if data.notNull and d == null
+					throw new FetchError 1, 'response is null', res
 				# prepare result
 				if data.fullHouse
 					res.data = d
@@ -741,6 +753,10 @@ httpFetch = do ->
 				# wrap unknown
 				if not e.hasOwnProperty 'id'
 					e = new FetchError 5, e.message, res
+				# dont forget the response!
+				if not e.response
+					e.response = res
+					e.status = res.status
 				# fail
 				if callback
 					if (a = callback false, e, res.request) and a instanceof Promise
@@ -757,18 +773,13 @@ httpFetch = do ->
 			# set timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
-			# invoke the Fetch API
-			if sec
-				fetch res.request.url, options
-					.then responseHandler
-					.then decryptHandler
-					.then successHandler
-					.catch errorHandler
-			else
-				fetch res.request.url, options
-					.then responseHandler
-					.then successHandler
-					.catch errorHandler
+			# invoke the Fetch API and
+			# assemble handler chain
+			htp = (fetch res.request.url, options)
+				.then responseHandler
+			htp = htp.then decryptHandler if sec
+			htp = htp.then successHandler
+				.catch errorHandler
 		# }}}
 		###
 		# create object shape
@@ -968,56 +979,35 @@ httpFetch = do ->
 	# }}}
 	Api = (handler) !-> # {{{
 		###
-		# instance parent
+		# New instance
 		@create = newInstance handler.config
 		###
-		# content-type shortcuts
-		@json = -> # {{{
-			# prepare
-			if (a = parseArguments arguments) instanceof Error
-				return handler.fetch a
-			# set proper content type
-			b = a.0
-			c = if b.headers
-				then b.headers
-				else {}
-			c['content-type'] = 'application/json'
-			a.0.headers = c
-			# done
-			return handler.fetch a.0, a.1
-		# }}}
-		@text = -> # {{{
-			# prepare
-			if (a = parseArguments arguments) instanceof Error
-				return handler.fetch a
-			# set proper content type
-			b = a.0
-			c = if b.headers
-				then b.headers
-				else {}
-			c['content-type'] = 'text/plain;charset=utf-8'
-			a.0.headers = c
-			# done
-			return handler.fetch a.0, a.1
-		# }}}
+		# HTML form request
 		@form = -> # {{{
 			# prepare
 			if (a = parseArguments arguments) instanceof Error
 				return handler.fetch a
-			# set proper content type
+			# get headers
 			b = a.0
 			c = if b.headers
 				then b.headers
 				else {}
-			c['content-type'] = if isFormData b.data
-				then 'multipart/form-data'
-				else 'application/x-www-form-urlencoded'
+			# determine proper content type
+			if typeof b.data == 'object'
+				c['content-type'] = if isFormData b.data
+					then 'multipart/form-data'
+					else 'application/x-www-form-urlencoded'
+			else
+				c['content-type'] = 'text/plain'
+			# set headers
 			a.0.headers = c
+			# set proper method
+			a.method = 'POST'
 			# done
 			return handler.fetch a.0, a.1
 		# }}}
 		###
-		# crypto section
+		# Crypto
 		if not apiCrypto
 			return
 		handshakeLocked = false
@@ -1122,10 +1112,12 @@ httpFetch = do ->
 			# check property
 			switch key
 			case 'secret'
-				return !!handler.config.secret
+				return if a = handler.config.secret
+					then a.get!
+					else ''
 			case 'prototype'
-				# to make *instanceof* syntax working,
-				# this special name must be handled
+				# this special case must be handled
+				# to make *instanceof* syntax working
 				return FetchHandler.prototype
 			default
 				if handler.config.hasOwnProperty key
@@ -1138,19 +1130,19 @@ httpFetch = do ->
 		# }}}
 		@set = (f, key, val) -> # {{{
 			# set property
-			if handler.config.hasOwnProperty key
-				switch key
-				case 'baseUrl'
+			cfg = handler.config
+			if cfg.hasOwnProperty key
+				if key == 'baseUrl'
 					# string
 					if typeof val == 'string'
-						handler.config[key] = val
-				case 'status200', 'notNull', 'fullHouse'
+						cfg[key] = val
+				else if (cfg.flagOptions.indexOf key) != -1
 					# boolean
-					handler.config[key] = !!val
-				case 'timeout'
+					cfg[key] = !!val
+				else if 'timeout'
 					# positive integer
 					if (val = parseInt val) >= 0
-						handler.config[key] = val
+						cfg[key] = val
 			# done
 			return true
 		# }}}

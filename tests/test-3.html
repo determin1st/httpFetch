@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>crypto test 1</title>
+  <title>Encryption</title>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="index.css">
@@ -14,12 +14,14 @@
     <h2>encryption control</h2>
     <div class="control">
       <textarea placeholder="(no shared secret)" disabled></textarea>
-      <button class="b1">handshake</button>
-      <button class="b2" disabled>reset</button>
+      <div class="split">
+        <button>handshake</button>
+        <button disabled>reset</button>
+      </div>
     </div>
     <br><br>
     <h2>content-type: text/plain</h2>
-    <div class="test n1">
+    <div class="test">
       <div class="title">
         <h3>Request:</h3>
         <h3></h3>
@@ -27,7 +29,7 @@
       </div>
       <div class="message">
         <div class="client">
-          <textarea>Thomas shall not pass</textarea>
+          <textarea>Thomas shall pass</textarea>
           <h3>Ecrypted to:</h3>
           <textarea placeholder="" disabled></textarea>
         </div>
@@ -48,6 +50,7 @@
   </div>
   <script src="../httpFetch.js"></script>
   <script src="highlight.js"></script>
+  <script src="test-3.js"></script>
   <script src="index.js"></script>
 </body>
 </html>

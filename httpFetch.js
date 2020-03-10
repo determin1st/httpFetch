@@ -252,6 +252,9 @@ httpFetch = function(){
           },
           save: function(){
             return this.manager('set', apiCrypto.bufToBase64(this.secret)) ? this : null;
+          },
+          get: function(){
+            return apiCrypto.bufToBase64(this.secret);
           }
         };
         return async function(secret, manager){
@@ -373,18 +376,19 @@ httpFetch = function(){
     this.integrity = null;
     this.keepalive = null;
     this.status200 = true;
-    this.fullHouse = false;
     this.notNull = false;
+    this.fullHouse = false;
     this.promiseReject = false;
     this.timeout = 20;
     this.secret = null;
     this.headers = null;
     this.redirectCount = 5;
+    this.parseResponse = true;
   };
   FetchConfig.prototype = {
     fetchOptions: ['mode', 'credentials', 'cache', 'redirect', 'referrer', 'referrerPolicy', 'integrity', 'keepalive'],
     dataOptions: ['baseUrl', 'timeout', 'redirectCount'],
-    flagOptions: ['status200', 'fullHouse', 'notNull', 'promiseReject'],
+    flagOptions: ['status200', 'notNull', 'fullHouse', 'promiseReject', 'parseResponse'],
     setOptions: function(o){
       var i$, ref$, len$, a;
       for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
@@ -454,9 +458,9 @@ httpFetch = function(){
     }
   };
   FetchError = function(){
-    var E;
+    var FetchError;
     if (Error.captureStackTrace) {
-      E = function(id, message, res){
+      FetchError = function(id, message, res){
         this.id = id;
         this.message = message;
         this.response = res || null;
@@ -464,7 +468,7 @@ httpFetch = function(){
         Error.captureStackTrace(this, FetchError);
       };
     } else {
-      E = function(id, message, res){
+      FetchError = function(id, message, res){
         this.id = id;
         this.message = message;
         this.response = res || null;
@@ -472,8 +476,8 @@ httpFetch = function(){
         this.stack = new Error(message).stack;
       };
     }
-    E.prototype = Error.prototype;
-    return E;
+    FetchError.prototype = Error.prototype;
+    return FetchError;
   }();
   FetchData = function(){
     var ResponseData, RedirectData, FetchData;
@@ -513,13 +517,14 @@ httpFetch = function(){
       this.fullHouse = config.fullHouse;
       this.notNull = config.notNull;
       this.promiseReject = config.promiseReject;
+      this.parseResponse = config.parseResponse;
       this.timeout = 1000 * config.timeout;
       this.promise = null;
       this.response = new ResponseData();
       this.redirect = new RedirectData(config.redirectCount);
       this.aborter = null;
       this.timer = 0;
-      this.timerFunc = this.timeout && function(force){
+      this.timerFunc = function(force){
         if (force) {
           clearTimeout(this$.timer);
         } else {
@@ -532,7 +537,7 @@ httpFetch = function(){
   FetchHandler = function(config){
     var handler;
     handler = function(data, options, callback){
-      var res, sec, responseHandler, decryptHandler, successHandler, errorHandler;
+      var res, sec, responseHandler, decryptHandler, successHandler, errorHandler, htp;
       res = data.response;
       sec = config.secret;
       responseHandler = function(r){
@@ -559,9 +564,9 @@ httpFetch = function(){
                 throw new FetchError(0, 'too many redirects', res);
               }
             }
-            throw new FetchError(3, 'not implemented :(', res);
+            throw new FetchError(3, 'not implemented yet :(', res);
           }
-          throw new FetchError(0, 'connection failed', res);
+          throw new FetchError(0, 'unsuccessful response status', res);
         }
         if (r.status !== 200 && data.status200) {
           throw new FetchError(0, 'HTTP status 200 required', res);
@@ -574,6 +579,9 @@ httpFetch = function(){
         }
         if (sec) {
           return r.arrayBuffer();
+        }
+        if (!data.parseResponse) {
+          return r;
         }
         b = h['content-type'] || '';
         if (a = options.headers.accept) {
@@ -609,8 +617,9 @@ httpFetch = function(){
         return a.data.then(function(d){
           var c;
           if ((a.data = d) === null) {
-            sec.manager('fail');
-            throw new FetchError(2, 'decryption failed', res);
+            d = new FetchError(2, 'decryption failed', res);
+            sec.manager('fail', d);
+            throw d;
           }
           res.crypto = a;
           sec.save();
@@ -630,8 +639,19 @@ httpFetch = function(){
       });
       successHandler = function(d){
         var a;
-        if (data.notNull && ((a = toString$.call(d).slice(8, -1)) === 'Null' || a === 'Blob' && a.size === 0 || a === 'ArrayBuffer' && a.byteLength === 0)) {
-          throw new FetchError(1, 'empty response', res);
+        switch (toString$.call(d).slice(8, -1)) {
+        case 'Blob':
+          if (d.size === 0) {
+            d = null;
+          }
+          break;
+        case 'ArrayBuffer':
+          if (d.byteLength === 0) {
+            d = null;
+          }
+        }
+        if (data.notNull && d === null) {
+          throw new FetchError(1, 'response is null', res);
         }
         if (data.fullHouse) {
           res.data = d;
@@ -663,6 +683,10 @@ httpFetch = function(){
         if (!e.hasOwnProperty('id')) {
           e = new FetchError(5, e.message, res);
         }
+        if (!e.response) {
+          e.response = res;
+          e.status = res.status;
+        }
         if (callback) {
           if ((a = callback(false, e, res.request)) && a instanceof Promise) {
             a.then(function(retry){
@@ -683,11 +707,11 @@ httpFetch = function(){
       if (data.timeout) {
         data.timer = setTimeout(data.timerFunc, data.timeout);
       }
+      htp = fetch(res.request.url, options).then(responseHandler);
       if (sec) {
-        fetch(res.request.url, options).then(responseHandler).then(decryptHandler).then(successHandler)['catch'](errorHandler);
-      } else {
-        fetch(res.request.url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
+        htp = htp.then(decryptHandler);
       }
+      htp = htp.then(successHandler)['catch'](errorHandler);
     };
     this.config = config;
     this.api = new Api(this);
@@ -858,32 +882,6 @@ httpFetch = function(){
   Api = function(handler){
     var handshakeLocked;
     this.create = newInstance(handler.config);
-    this.json = function(){
-      var a, b, c;
-      if ((a = parseArguments(arguments)) instanceof Error) {
-        return handler.fetch(a);
-      }
-      b = a[0];
-      c = b.headers
-        ? b.headers
-        : {};
-      c['content-type'] = 'application/json';
-      a[0].headers = c;
-      return handler.fetch(a[0], a[1]);
-    };
-    this.text = function(){
-      var a, b, c;
-      if ((a = parseArguments(arguments)) instanceof Error) {
-        return handler.fetch(a);
-      }
-      b = a[0];
-      c = b.headers
-        ? b.headers
-        : {};
-      c['content-type'] = 'text/plain;charset=utf-8';
-      a[0].headers = c;
-      return handler.fetch(a[0], a[1]);
-    };
     this.form = function(){
       var a, b, c;
       if ((a = parseArguments(arguments)) instanceof Error) {
@@ -893,8 +891,13 @@ httpFetch = function(){
       c = b.headers
         ? b.headers
         : {};
-      c['content-type'] = isFormData(b.data) ? 'multipart/form-data' : 'application/x-www-form-urlencoded';
+      if (typeof b.data === 'object') {
+        c['content-type'] = isFormData(b.data) ? 'multipart/form-data' : 'application/x-www-form-urlencoded';
+      } else {
+        c['content-type'] = 'text/plain';
+      }
       a[0].headers = c;
+      a.method = 'POST';
       return handler.fetch(a[0], a[1]);
     };
     if (!apiCrypto) {
@@ -991,9 +994,10 @@ httpFetch = function(){
   };
   ApiHandler = function(handler){
     this.get = function(f, key){
+      var a;
       switch (key) {
       case 'secret':
-        return !!handler.config.secret;
+        return (a = handler.config.secret) ? a.get() : '';
       case 'prototype':
         return FetchHandler.prototype;
       default:
@@ -1007,21 +1011,18 @@ httpFetch = function(){
       return null;
     };
     this.set = function(f, key, val){
-      if (handler.config.hasOwnProperty(key)) {
-        switch (key) {
-        case 'baseUrl':
+      var cfg;
+      cfg = handler.config;
+      if (cfg.hasOwnProperty(key)) {
+        if (key === 'baseUrl') {
           if (typeof val === 'string') {
-            handler.config[key] = val;
+            cfg[key] = val;
           }
-          break;
-        case 'status200':
-        case 'notNull':
-        case 'fullHouse':
-          handler.config[key] = !!val;
-          break;
-        case 'timeout':
+        } else if (cfg.flagOptions.indexOf(key) !== -1) {
+          cfg[key] = !!val;
+        } else if ('timeout') {
           if ((val = parseInt(val)) >= 0) {
-            handler.config[key] = val;
+            cfg[key] = val;
           }
         }
       }

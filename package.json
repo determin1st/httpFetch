@@ -14,11 +14,14 @@
     "http",
     "fetch",
     "json",
-    "FormData",
-    "upload",
     "browser",
+    "api",
+    "cancellation",
+    "retry",
+    "upload",
+    "FormData",
     "crypto"
   ],
   "main": "httpFetch.js",
-  "version": "1.2.6"
+  "version": "2.0.0"
 }
