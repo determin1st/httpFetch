@@ -455,7 +455,6 @@ class HttpFetch {
   # }}}
   private function decryptRequest($data) # {{{
   {
-    xdebug_break();
     try
     {
       # check secret key
