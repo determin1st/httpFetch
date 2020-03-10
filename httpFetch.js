@@ -616,11 +616,12 @@ httpFetch = function(){
         a = sec.decrypt(buf, res.request.crypto.params);
         return a.data.then(function(d){
           var c;
-          if ((a.data = d) === null) {
+          if (d === null) {
             d = new FetchError(2, 'decryption failed', res);
             sec.manager('fail', d);
             throw d;
           }
+          a.data = buf;
           res.crypto = a;
           sec.save();
           c = options.headers.accept || res.headers['content-type'] || '';

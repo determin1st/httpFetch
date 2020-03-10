@@ -374,7 +374,6 @@ class HttpFetch {
           break;
         case 'put-single-jpg':
           # get uploaded file
-          xdebug_break();
           /***
           if (!($a = normalizeFiles('image')) || count($a) !== 1) {
             break;
@@ -390,8 +389,8 @@ class HttpFetch {
           }
           # return metadata as is
           $result = $request;
-          break;
           /***/
+          break;
         }
         break;
         # }}}

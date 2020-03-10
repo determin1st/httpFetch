@@ -691,11 +691,12 @@ httpFetch = do ->
 				# wait
 				return a.data.then (d) ->
 					# check decryption successful
-					if (a.data = d) == null
+					if d == null
 						d = new FetchError 2, 'decryption failed', res
 						sec.manager 'fail', d
 						throw d
 					# store
+					a.data = buf
 					res.crypto = a
 					# update secret
 					sec.save!
