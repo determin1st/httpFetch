@@ -3,7 +3,7 @@
 wrapper for the browser
 ([experimental](https://developer.mozilla.org/en-US/docs/MDN/Contribute/Guidelines/Conventions_definitions#Experimental),
 [reactionary](https://en.wikipedia.org/wiki/Reactionary))*
-[![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/logo.jpg)](http://www.nathanandersonart.com/)
+[![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/tests/logo.jpg)](http://www.nathanandersonart.com/)
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
 
@@ -12,8 +12,8 @@ wrapper for the browser
 - [**Cancellation**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-2.html): cancel anything
 - [**Encryption**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-3.html): encrypt everything ([firefox only](https://en.wikipedia.org/wiki/Firefox), [duck you google](https://gist.github.com/jakearchibald/c4297f4191eb60484a6a14f5f5e5ea64)!).
 - [**Retry**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-4.html): restart anything
-- **Upload**: upload anything
 - **Download**: download anything
+- **Upload**: upload anything
 - **Mix**: mix everything
 
 
