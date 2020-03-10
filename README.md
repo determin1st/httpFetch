@@ -46,6 +46,7 @@ npm i http-fetch-json
   | **`url`**  | [string][2] |         | reference to the local or remote web resource (auto-prefixed with **`baseUrl`** if doesn't contain [sheme](https://en.wikipedia.org/wiki/Uniform_Resource_Identifier)) |
   | **`data`** | [any][1]    |         | content to be sent as the request body |
   </details>
+
   ---
   <details>
   <summary>native fetch</summary>
@@ -62,6 +63,7 @@ npm i http-fetch-json
   | **`integrity`**      | [string][2]  |               | the [subresource integrity][107] value of the request |
   | **`keepalive`**      | [boolean][4] | `false`       | allows the request to [outlive the page][108] |
   </details>
+
   ---
   <details>
   <summary>advanced</summary>
@@ -78,6 +80,7 @@ npm i http-fetch-json
   | **`aborter`**       | [aborter][8] |         | to cancel request with given controller |
   | **`headers`**       | [object][3]  | `{..}`  | [request headers][114] |
   </details>
+
   ---
 - **`callback`** - optional result handler [function][9]
   ---
@@ -149,6 +152,7 @@ npm i http-fetch-json
   });
   ```
 </details>
+
 ### Optimistic, when `notNull`
 ```javascript
 var oFetch = httpFetch.create({
@@ -203,6 +207,7 @@ var oFetch = httpFetch.create({
   });
 ```
 </details>
+
 ### Pessimistic style, when `promiseReject`
 ```javascript
 var pFetch = httpFetch.create({
@@ -252,6 +257,7 @@ var pFetch = httpFetch.create({
     });
   ```
 </details>
+
 ### Pessimistic, when `promiseReject` and `notNull`
 <details>
   <summary>async/await</summary>
@@ -312,12 +318,11 @@ var pFetch = httpFetch.create({
 
 ## FetchError
 <details>
-  <summary>id</summary>
+  <summary>check error category</summary>
 
   ```javascript
   if (res instanceof Error)
   {
-    // check FetchError category:
     switch (res.id)
     {
       case 0:
