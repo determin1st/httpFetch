@@ -143,11 +143,11 @@ var test = async function() {
         {
             a(b.data);
             if (a = b.request.crypto) {
-                tArea[1].value = help.bufToHex(a);
+                tArea[1].value = help.bufToHex(a.data);
             }
             tArea[2].value = b.data;
             if (a = b.crypto) {
-                tArea[3].value = help.bufToHex(a);
+                tArea[3].value = help.bufToHex(a.data);
             }
         }
     });
