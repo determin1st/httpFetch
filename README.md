@@ -154,11 +154,15 @@ npm i http-fetch-json
 </details>
 
 ### Optimistic, when `notNull`
-```javascript
-var oFetch = httpFetch.create({
-  notNull: true
-});
-```
+<details>
+  <summary>custom instance</summary>
+
+  ```javascript
+  var oFetch = httpFetch.create({
+    notNull: true
+  });
+  ```
+</details>
 <details>
   <summary>async/await</summary>
 
@@ -209,11 +213,15 @@ var oFetch = httpFetch.create({
 </details>
 
 ### Pessimistic style, when `promiseReject`
-```javascript
-var pFetch = httpFetch.create({
-  promiseReject: true
-});
-```
+<details>
+  <summary>custom instance</summary>
+
+  ```javascript
+  var pFetch = httpFetch.create({
+    promiseReject: true
+  });
+  ```
+</details>
 <details>
   <summary>async/await</summary>
 
@@ -259,6 +267,16 @@ var pFetch = httpFetch.create({
 </details>
 
 ### Pessimistic, when `promiseReject` and `notNull`
+<details>
+  <summary>custom instance</summary>
+
+  ```javascript
+  var pFetch = httpFetch.create({
+    notNull: true,
+    promiseReject: true
+  });
+  ```
+</details>
 <details>
   <summary>async/await</summary>
 
@@ -318,7 +336,7 @@ var pFetch = httpFetch.create({
 
 ## FetchError
 <details>
-  <summary>check error category</summary>
+  <summary>error categories</summary>
 
   ```javascript
   if (res instanceof Error)
@@ -501,6 +519,7 @@ var pFetch = httpFetch.create({
 
 ## Links
 https://javascript.info/fetch-api
+https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
 
 [0]: https://github.com/determin1st/httpFetch
 [1]: https://developer.mozilla.org/en-US/docs/Glossary/Type
