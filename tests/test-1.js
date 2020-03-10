@@ -92,16 +92,16 @@ var test = async function() {
             console.log('BEGIN:'+this.innerText);
             // run
             await soFetch.form({
-                url: 'echo',
+                url: '/tests/echo',
                 method: 'GET',
                 data: 'GOT with BODY!'
             }).then(assert(' > GET with BODY: ', true));
             await soFetch({
-                url: 'echo',
+                url: '/tests/echo',
                 method: 'POST'
             }).then(assert(' > POST without BODY: ', true));
             await soFetch({
-                url: 'echo',
+                url: '/tests/echo',
                 method: 'POST',
                 data: null
             }).then(assert(' > POST with NULL: ', true));
