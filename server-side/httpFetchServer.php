@@ -37,6 +37,7 @@ class HttpFetch {
         'keyFilePrivate' => 'private.pem',
         'keyFilePublic'  => 'public.pem',
         'outputError'    => true,
+        'testsEnabled'   => true,
       ];
     }
     # apply parameter
@@ -134,8 +135,14 @@ class HttpFetch {
       # set loaded error
       $this->loaded = true;
       $this->error  = $e->getMessage();
-      # report it?
-      # ...
+      # report it
+      if (self::$options['outputError'])
+      {
+        header('content-type: text/plain');
+        echo $this->error;
+      }
+      # discard parsed request
+      $R = null;
     }
     return $R;
   }
@@ -262,7 +269,16 @@ class HttpFetch {
       break;
       # }}}
     case 'tests':
-      # all tests here {{{
+      # all tests {{{
+      # check available
+      if (!self::$options['testsEnabled']) {
+        throw new Exception('tests are disabled');
+      }
+      $testDir = __DIR__.DIRECTORY_SEPARATOR.$path[0];
+      if (!file_exists($testDir)) {
+        throw new Exception('directory not found: '.$testDir);
+      }
+      $testDir = $testDir.DIRECTORY_SEPARATOR;
       # proceed
       switch ($path[1]) {
       case 'sleep':
@@ -425,6 +441,51 @@ class HttpFetch {
         {
           # give final url
           $json = 'https://api.quotable.io/random';
+        }
+        break;
+        # }}}
+      case 'download':
+        # {{{
+        # check
+        if ($this->encrypted) {
+          break;
+        }
+        # not encrypted
+        # prepare
+        switch ($path[2]) {
+        case 'img':
+          # chunked image {{{
+          # get file
+          $file = $testDir.'grasp.jpg';
+          $size = file_exists($file) ? filesize($file) : 0;
+          # set headers
+          header('Cache-Control: no-store');
+          header('Content-Type: image/jpeg');
+          header('Content-Length: '.$size);
+          # transfer chunks with delay
+          if ($size > 0)
+          {
+            if (($a = fopen($file, 'r')) === false) {
+              throw new Exception('failed to open: '.$file);
+            }
+            $n = 1 + round($size / 10, 0);
+            $i = -1;
+            while (++$i < 10)
+            {
+              # read
+              if (($b = fread($a, $n)) === false) {
+                throw new Exception('failed to read: '.$file);
+              }
+              # output
+              echo $b; flush();
+              # delay
+              usleep(500000);# 0.5s
+            }
+          }
+          break;
+          # }}}
+        default:
+          break;
         }
         break;
         # }}}

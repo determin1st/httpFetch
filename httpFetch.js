@@ -2,8 +2,8 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, isFormData, FetchConfig, FetchOptions, FetchError, FetchData, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
-  api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder];
+  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, isFormData, FetchConfig, FetchOptions, FetchError, FetchData, FetchStream, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder, typeof ReadableStream];
   if (api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
     return null;
@@ -380,15 +380,15 @@ httpFetch = function(){
     this.fullHouse = false;
     this.promiseReject = false;
     this.timeout = 20;
+    this.redirectCount = 5;
     this.secret = null;
     this.headers = null;
-    this.redirectCount = 5;
-    this.parseResponse = true;
+    this.parseResponse = 'data';
   };
   FetchConfig.prototype = {
     fetchOptions: ['mode', 'credentials', 'cache', 'redirect', 'referrer', 'referrerPolicy', 'integrity', 'keepalive'],
-    dataOptions: ['baseUrl', 'timeout', 'redirectCount'],
-    flagOptions: ['status200', 'notNull', 'fullHouse', 'promiseReject', 'parseResponse'],
+    dataOptions: ['baseUrl', 'timeout', 'redirectCount', 'parseResponse'],
+    flagOptions: ['status200', 'notNull', 'fullHouse', 'promiseReject'],
     setOptions: function(o){
       var i$, ref$, len$, a;
       for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
@@ -517,8 +517,8 @@ httpFetch = function(){
       this.fullHouse = config.fullHouse;
       this.notNull = config.notNull;
       this.promiseReject = config.promiseReject;
-      this.parseResponse = config.parseResponse;
       this.timeout = 1000 * config.timeout;
+      this.parseResponse = config.parseResponse;
       this.promise = null;
       this.response = new ResponseData();
       this.redirect = new RedirectData(config.redirectCount);
@@ -534,6 +534,42 @@ httpFetch = function(){
       };
     };
   }();
+  FetchStream = function(){
+    var FetchStream;
+    FetchStream = function(stream, data, sec){
+      var res, reader, size, readHandler, errorHandler, this$ = this;
+      res = data.response;
+      reader = stream.getReader();
+      size = res.headers['content-length'] ? parseInt(res.headers['content-length']) : 0;
+      readHandler = function(c){
+        if (!c.done) {
+          this$.offset += c.value.length;
+        }
+        if (size > 0) {
+          this$.progress = this$.offset / size;
+        }
+        return c.done
+          ? null
+          : c.value;
+      };
+      errorHandler = function(e){
+        this$.error = new FetchError(5, 'read stream failed: ' + e.message, res);
+        if (data.promiseReject) {
+          throw this$.error;
+        }
+        return null;
+      };
+      this.offset = 0;
+      this.progress = 0.00;
+      this.error = null;
+      this.response = res;
+      this.read = function(){
+        this.error = null;
+        return reader.read().then(readHandler)['catch'](errorHandler);
+      };
+    };
+    return FetchStream;
+  }();
   FetchHandler = function(config){
     var handler;
     handler = function(data, options, callback){
@@ -545,6 +581,7 @@ httpFetch = function(){
         if (data.timer) {
           data.timerFunc(true);
         }
+        res.type = r.type;
         res.status = r.status;
         res.headers = h = {};
         a = r.headers.entries();
@@ -571,42 +608,45 @@ httpFetch = function(){
         if (r.status !== 200 && data.status200) {
           throw new FetchError(0, 'HTTP status 200 required', res);
         }
-        if ((res.type = r.type) === 'opaque') {
+        if (r.type === 'opaque') {
           if (sec) {
             throw new FetchError(1, 'encrypted opaque response', res);
           }
           return r;
         }
-        if (sec) {
-          return r.arrayBuffer();
-        }
-        if (!data.parseResponse) {
-          return r;
-        }
-        b = h['content-type'] || '';
-        if (a = options.headers.accept) {
-          if (b && b.indexOf(a) !== 0) {
-            throw new FetchError(1, 'incorrect content-type header', res);
+        switch (data.parseResponse) {
+        case 'stream':
+          return new FetchStream(r.body, data, sec);
+        case 'data':
+          if (sec) {
+            return r.arrayBuffer();
           }
-        } else {
-          a = b;
+          b = h['content-type'] || '';
+          if (a = options.headers.accept) {
+            if (b && b.indexOf(a) !== 0) {
+              throw new FetchError(1, 'incorrect content-type header', res);
+            }
+          } else {
+            a = b;
+          }
+          switch (0) {
+          case a.indexOf('application/json'):
+            return r.text().then(jsonDecode);
+          case a.indexOf('application/octet-stream'):
+            return r.arrayBuffer();
+          case a.indexOf('text/'):
+            return r.text();
+          case a.indexOf('image/'):
+          case a.indexOf('audio/'):
+          case a.indexOf('video/'):
+            return r.blob();
+          case a.indexOf('multipart/form-data'):
+            return r.formData();
+          default:
+            return r.arrayBuffer();
+          }
         }
-        switch (0) {
-        case a.indexOf('application/json'):
-          return r.text().then(jsonDecode);
-        case a.indexOf('application/octet-stream'):
-          return r.arrayBuffer();
-        case a.indexOf('text/'):
-          return r.text();
-        case a.indexOf('image/'):
-        case a.indexOf('audio/'):
-        case a.indexOf('video/'):
-          return r.blob();
-        case a.indexOf('multipart/form-data'):
-          return r.formData();
-        default:
-          return r.arrayBuffer();
-        }
+        return r;
       };
       sec && (decryptHandler = function(buf){
         var a;
@@ -654,7 +694,7 @@ httpFetch = function(){
         if (data.notNull && d === null) {
           throw new FetchError(1, 'response is null', res);
         }
-        if (data.fullHouse) {
+        if (data.fullHouse && data.parseResponse === 'data') {
           res.data = d;
           d = res;
         }
@@ -709,7 +749,7 @@ httpFetch = function(){
         data.timer = setTimeout(data.timerFunc, data.timeout);
       }
       htp = fetch(res.request.url, options).then(responseHandler);
-      if (sec) {
+      if (sec && res.parseResponse === 'data') {
         htp = htp.then(decryptHandler);
       }
       htp = htp.then(successHandler)['catch'](errorHandler);
@@ -738,6 +778,9 @@ httpFetch = function(){
       }
       if (options.hasOwnProperty('redirectCount')) {
         d.redirect.count = options.redirectCount | 0;
+      }
+      if (options.hasOwnProperty('parseResponse')) {
+        d.parseResponse = typeof options.parseResponse === 'string' ? options.parseResponse : '';
       }
       for (i$ = 0, len$ = (ref$ = config.flagOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];

@@ -9,6 +9,7 @@ httpFetch = do ->
 		typeof Promise
 		typeof WeakMap
 		typeof TextDecoder
+		typeof ReadableStream
 	]
 	if api.includes 'undefined'
 		console.log 'httpFetch: missing requirements'
@@ -410,10 +411,10 @@ httpFetch = do ->
 		@fullHouse      = false
 		@promiseReject  = false
 		@timeout        = 20
+		@redirectCount  = 5
 		@secret         = null
 		@headers        = null
-		@redirectCount  = 5
-		@parseResponse  = true
+		@parseResponse  = 'data'
 	###
 	FetchConfig.prototype = {
 		fetchOptions: [
@@ -430,13 +431,13 @@ httpFetch = do ->
 			'baseUrl'
 			'timeout'
 			'redirectCount'
+			'parseResponse'
 		]
 		flagOptions: [
 			'status200'
 			'notNull'
 			'fullHouse'
 			'promiseReject'
-			'parseResponse'
 		]
 		setOptions: (o) !->
 			# set native
@@ -561,8 +562,8 @@ httpFetch = do ->
 			@fullHouse     = config.fullHouse
 			@notNull       = config.notNull
 			@promiseReject = config.promiseReject
-			@parseResponse = config.parseResponse
 			@timeout       = 1000 * config.timeout
+			@parseResponse = config.parseResponse
 			# controllers and data
 			@promise   = null
 			@response  = new ResponseData!
@@ -578,6 +579,61 @@ httpFetch = do ->
 					@aborter.abort!
 				@timer = 0
 	# }}}
+	FetchStream = do -> # {{{
+		FetchStream = (stream, data, sec) !-> # {{{
+			# ReadableStream wrapper
+			# initialize
+			# get ResponseData
+			res = data.response
+			# get reader
+			# ReadableStreamBYOBReader?
+			# BYOB: bring your own buffer (to optimise reading)
+			# reader = stream.getReader {mode: 'byob'}
+			reader = stream.getReader!
+			# get content size
+			size = if res.headers['content-length']
+				then parseInt res.headers['content-length']
+				else 0
+			# create handlers
+			readHandler = (c) ~> # {{{
+				# update offset
+				if not c.done
+					@offset += c.value.length
+				# update progress
+				if size > 0
+					@progress = @offset / size
+				# resolve
+				return if c.done
+					then null
+					else c.value
+			# }}}
+			errorHandler = (e) ~> # {{{
+				# set error
+				@error = new FetchError 5, 'read stream failed: '+e.message, res
+				# reject
+				if data.promiseReject
+					throw @error
+				# done
+				return null
+			# }}}
+			# create object shape
+			@offset = 0
+			@progress = 0.00
+			@error = null
+			@response = res
+			@read = ->
+				# reset error
+				@error = null
+				# handle reading
+				reader.read!
+					.then  readHandler
+					.catch errorHandler
+		###
+		#FetchStream.prototype = {
+		#}
+		# }}}
+		return FetchStream
+	# }}}
 	FetchHandler = (config) !-> # {{{
 		###
 		handler = (data, options, callback) !-> # {{{
@@ -588,14 +644,15 @@ httpFetch = do ->
 				# terminate timer
 				if data.timer
 					data.timerFunc true
-				# set response status
-				res.status = r.status
-				# set response headers
+				# initialize fetch response
+				res.type    = r.type
+				res.status  = r.status
 				res.headers = h = {}
+				# set headers
 				a = r.headers.entries!
 				while not (b = a.next!).done
 					h[b.value.0.toLowerCase!] = b.value.1
-				# check ok
+				# check status range
 				if not r.ok
 					# handle redirection
 					# RFC7231§6.4: The 3xx (Redirection) class of status code indicates
@@ -627,60 +684,63 @@ httpFetch = do ->
 				# check HTTP status 200 (KISS API)
 				if r.status != 200 and data.status200
 					throw new FetchError 0, 'HTTP status 200 required', res
-				# set type and
 				# check opaque
-				if (res.type = r.type) == 'opaque'
+				if r.type == 'opaque'
 					# check encrypted
 					if sec
 						# can't access data === can't decrypt
 						throw new FetchError 1, 'encrypted opaque response', res
-					# an opaque Response object may be consumed by other APIs,
-					# return it as is
+					# an opaque response may probably be consumed by another API
 					return r
-				# encrypted request enforce encrypted response and
-				# content is handled as binary..
-				if sec
-					return r.arrayBuffer!
+				# check parsing mode
+				switch data.parseResponse
+				case 'stream'
+					# multiple chunks of data
+					return new FetchStream r.body, data, sec
+				case 'data'
+					# single chunk of data
+					# encrypted request must get encrypted response
+					if sec
+						# content is always handled as binary
+						return r.arrayBuffer!
+					# check accepted content type
+					b = h['content-type'] or ''
+					if a = options.headers.accept
+						# prefer own setting and
+						# loose match it against server
+						if b and (b.indexOf a) != 0
+							throw new FetchError 1, 'incorrect content-type header', res
+					else
+						# use server setting
+						a = b
+					# return parsed content
+					switch 0
+					case a.indexOf 'application/json'
+						# JSON:
+						# - not using .json, because response with empty body
+						#   will throw error at no-cors opaque mode (who needs that?)
+						# - the UTF-8 BOM, must not be added, but if present,
+						#   will be stripped by .text
+						return r.text!then jsonDecode
+					case a.indexOf 'application/octet-stream'
+						# binary
+						return r.arrayBuffer!
+					case a.indexOf 'text/'
+						# plaintext
+						return r.text!
+					case (a.indexOf 'image/'), \
+							(a.indexOf 'audio/'), \
+							(a.indexOf 'video/')
+						# blob
+						return r.blob!
+					case a.indexOf 'multipart/form-data'
+						# FormData
+						return r.formData!
+					default
+						# assume binary
+						return r.arrayBuffer!
 				# dont parse the response
-				if not data.parseResponse
-					return r
-				###
-				# check accepted content type
-				b = h['content-type'] or ''
-				if a = options.headers.accept
-					# prefer own setting and
-					# loose match it against server
-					if b and (b.indexOf a) != 0
-						throw new FetchError 1, 'incorrect content-type header', res
-				else
-					# use server setting
-					a = b
-				# parse content
-				switch 0
-				case a.indexOf 'application/json'
-					# JSON:
-					# - not using .json, because response with empty body
-					#   will throw error at no-cors opaque mode (who needs that?)
-					# - the UTF-8 BOM, must not be added, but if present,
-					#   will be stripped by .text
-					return r.text!then jsonDecode
-				case a.indexOf 'application/octet-stream'
-					# binary
-					return r.arrayBuffer!
-				case a.indexOf 'text/'
-					# plaintext
-					return r.text!
-				case (a.indexOf 'image/'), \
-				     (a.indexOf 'audio/'), \
-				     (a.indexOf 'video/')
-					# blob
-					return r.blob!
-				case a.indexOf 'multipart/form-data'
-					# FormData
-					return r.formData!
-				default
-					# assume binary
-					return r.arrayBuffer!
+				return r
 			# }}}
 			sec and decryptHandler = (buf) -> # {{{
 				# check for empty response
@@ -716,23 +776,25 @@ httpFetch = do ->
 					return c
 			# }}}
 			successHandler = (d) !-> # {{{
-				# detect unified null
+				# detect nulls unified
 				switch typeof! d
 				case 'Blob'
 					d = null if d.size == 0
 				case 'ArrayBuffer'
 					d = null if d.byteLength == 0
-				# prevent null
+				# prevent nulls
 				if data.notNull and d == null
 					throw new FetchError 1, 'response is null', res
 				# prepare result
-				if data.fullHouse
+				if data.fullHouse and data.parseResponse == 'data'
 					res.data = d
 					d = res
-				# success
+				# SUCCESS
 				if callback
-					if (a = callback true, d, res.request) and a instanceof Promise
-						# retry async callback
+					if (a = callback true, d, res.request) and \
+					   (a instanceof Promise)
+						###
+						# retry request with async callback
 						a.then (retry) !->
 							handler data, options, callback if retry
 				else
@@ -758,10 +820,12 @@ httpFetch = do ->
 				if not e.response
 					e.response = res
 					e.status = res.status
-				# fail
+				# FAIL
 				if callback
-					if (a = callback false, e, res.request) and a instanceof Promise
-						# retry async callback
+					if (a = callback false, e, res.request) and \
+					   (a instanceof Promise)
+						###
+						# retry request with async callback
 						a.then (retry) !->
 							handler data, options, callback if retry
 				else
@@ -774,11 +838,12 @@ httpFetch = do ->
 			# set timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
-			# invoke the Fetch API and
-			# assemble handler chain
+			# invoke the api
 			htp = (fetch res.request.url, options)
 				.then responseHandler
-			htp = htp.then decryptHandler if sec
+			# assemble handlers chain
+			if sec and res.parseResponse == 'data'
+				htp = htp.then decryptHandler
 			htp = htp.then successHandler
 				.catch errorHandler
 		# }}}
@@ -818,6 +883,11 @@ httpFetch = do ->
 			# set redirect count
 			if options.hasOwnProperty 'redirectCount'
 				d.redirect.count = options.redirectCount .|. 0
+			# set parsing mode
+			if options.hasOwnProperty 'parseResponse'
+				d.parseResponse = if typeof options.parseResponse == 'string'
+					then options.parseResponse
+					else ''
 			# set flags
 			for a in config.flagOptions when options.hasOwnProperty a
 				d[a] = !!options[a]
@@ -875,7 +945,6 @@ httpFetch = do ->
 						delete o.headers['content-type']
 						# the data will be wrapped after encryption!
 						# TODO
-						# ...
 						# ...
 					default
 						# RAW
@@ -957,9 +1026,11 @@ httpFetch = do ->
 					# wrap encryption errors
 					if not e.hasOwnProperty 'id'
 						e = new FetchError 2, 'encryption failed, '+e.message
-					# fail
-					if (a = callback false, e, res.request) and a instanceof Promise
-						# retry async callback
+					# FAIL
+					if (a = callback false, e, res.request) and \
+					   (a instanceof Promise)
+						###
+						# retry request with async callback
 						a.then (retry) !->
 							handler data, options, callback if retry
 					else

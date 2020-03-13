@@ -10,9 +10,9 @@ wrapper for the browser
 ## Tests
 - [**Fail**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-1.html): check everything
 - [**Cancellation**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-2.html): cancel anything
-- [**Encryption**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-3.html): encrypt everything ([firefox only](https://en.wikipedia.org/wiki/Firefox), [duck you google](https://gist.github.com/jakearchibald/c4297f4191eb60484a6a14f5f5e5ea64)!).
+- [**Encryption**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-3.html): encrypt everything ([FF only](https://en.wikipedia.org/wiki/Firefox)).
 - [**Retry**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-4.html): restart anything
-- **Download**: download anything
+- [**Download**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-5.html): download anything
 - **Upload**: upload anything
 - **Mix**: mix everything
 
@@ -38,7 +38,7 @@ npm i http-fetch-json
 #### Parameters
 - **`options`** - [object][3] with:
   ---
-  <details open>
+  <details>
   <summary>basic</summary>
 
   | name       | type        | default | description |
@@ -76,9 +76,9 @@ npm i http-fetch-json
   | **`promiseReject`** | [boolean][4] | `false` | promise will reject with [Error][5] |
   | **`timeout`**       | [integer][6] | `20`    | request will abort in the given [delay in seconds][112] |
   | **`redirectCount`** | [integer][6] | `5`     | manual redirects limit (**non-functional**) |
-  | **`parseResponse`** | [boolean][4] | `true`  | to parse response to the proper [content type][113], otherwise, result is raw [response][7] |
   | **`aborter`**       | [aborter][8] |         | to cancel request with given controller |
   | **`headers`**       | [object][3]  | `{..}`  | [request headers][114] |
+  | **`parseResponse`** | [string][2]  | `data`  | `data` is to parse all the content to proper [content type][113], `stream` for **`FetchStream`**, otherwise, raw [response][7] |
   </details>
 
   ---
@@ -310,22 +310,24 @@ npm i http-fetch-json
 ## Result types
 - [JSON](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON)
   - `application/json`
-- [USVString](https://developer.mozilla.org/en-US/docs/Web/API/USVString)
+- [String](https://developer.mozilla.org/en-US/docs/Web/API/USVString)
   - `text/*`
+- [ArrayBuffer][12]
+  - `application/octet-stream`
+  - ...
 - [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob)
   - `image/*`
   - `audio/*`
   - `video/*`
 - [FormData][13]
   - `multipart/form-data`
-- [ArrayBuffer][12]
-  - `application/octet-stream`
-  - ...
 - [null][11]
   - `application/json` when [`JSON NULL`][111]
   - `application/octet-stream` when not **`byteLength`**
   - `image/*`, `audio/*`, `video/*` when not **`size`**
   - when [HTTP response body][110] is empty
+- [FetchStream][15]
+  - when **`parseResponse`** is `stream`
 - [FetchError][5]
   - when [fetch()][100] fails
   - when [unsuccessful HTTP status code][115]
@@ -522,7 +524,7 @@ https://javascript.info/fetch-api
 
 https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
 
-
+https://code.tutsplus.com/tutorials/why-youre-a-bad-php-programmer--net-18384
 
 [0]: https://github.com/determin1st/httpFetch
 [1]: https://developer.mozilla.org/en-US/docs/Glossary/Type
@@ -539,6 +541,7 @@ https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
 [12]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer
 [13]: https://developer.mozilla.org/en-US/docs/Web/API/FormData
 [14]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON
+[15]: https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
 
 [100]: https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/fetch
 [101]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
@@ -559,6 +562,7 @@ https://tom.preston-werner.com/2010/08/23/readme-driven-development.html
 [116]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/instanceof
 [117]: https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/enctype
 
+---
 <style type="text/css">
   summary {font-size:1.2em;font-weight:bold;color:skyblue;}
 </style>
