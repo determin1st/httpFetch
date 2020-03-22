@@ -19,7 +19,7 @@ window.addEventListener 'load', !->>
 	if not isLocal
 		# check remote
 		console.log 'httpFetch: remote version is '+(await soFetch '')
-		if (await soFetch '/tests') !== true
+		if (await soFetch '/tests') != true
 			soFetch := null
 			console.log 'httpFetch: test interface is disabled'
 			return
@@ -35,7 +35,7 @@ window.addEventListener 'load', !->>
 		(res) !->
 			###
 			if res instanceof Error
-				if res.id
+				if res.hasOwnProperty 'id'
 					res = 'FetchError('+res.id+')['+res.status+']: %c'+res.message+' ';
 				else
 					res = 'Error: %c'+res.message;
@@ -81,6 +81,13 @@ window.addEventListener 'load', !->>
 				return b.join ''
 		# }}}
 	};
+	window.sleep = (time) ->
+		done = null
+		setTimeout !->
+			done!
+		, time
+		return new Promise (resolve) !->
+			done := resolve
 	# }}}
 	# set source code
 	if a = document.querySelector 'code.javascript'

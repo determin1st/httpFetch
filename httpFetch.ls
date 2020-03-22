@@ -23,7 +23,7 @@ httpFetch = do ->
 				return JSON.parse s
 			catch
 				# breaks to upper level!
-				throw new FetchError 1, 'incorrect JSON: '+s, 0
+				throw new FetchError 1, 'incorrect JSON: '+s
 		# empty equals to null
 		return null
 	# }}}
@@ -503,22 +503,18 @@ httpFetch = do ->
 	# }}}
 	FetchError = do -> # {{{
 		if Error.captureStackTrace
-			FetchError = (id, message, res) !->
+			FetchError = (id, message) !->
 				@id       = id
 				@message  = message
-				@response = res or null
-				@status   = if res
-					then res.status
-					else 0
+				@response = null
+				@status   = 0
 				Error.captureStackTrace @, FetchError
 		else
-			FetchError = (id, message, res) !->
+			FetchError = (id, message) !->
 				@id       = id
 				@message  = message
-				@response = res or null
-				@status   = if res
-					then res.status
-					else 0
+				@response = null
+				@status   = 0
 				@stack    = (new Error message).stack
 		###
 		FetchError.prototype = Error.prototype
@@ -527,32 +523,36 @@ httpFetch = do ->
 	FetchData = do -> # {{{
 		ResponseData = do ->
 			RequestData = !-> # {{{
-				@url     = null
+				@url     = ''
 				@headers = null
 				@data    = null
 				@crypto  = null
+				@time    = 0
 			###
 			RequestData.prototype = {
-				setUrl: (baseUrl, url) !->
+				setUrl: (base, url) !->
 					if url
-						# check for sheme marker and
-						# prepend baseUrl if needed
-						@url = if (url.indexOf ':') == -1
-							then baseUrl + url
-							else url
+						if base and (url.indexOf ':') == -1
+							@url = if base[base.length - 1] == '/' or url.0 == '/'
+								then base + url
+								else base + '/' + url
+						else
+							@url = url
 					else
-						@url = baseUrl
+						@url = base
 			}
 			# }}}
 			return ResponseData = !->
 				@status  = 0
-				@type    = null
+				@type    = ''
 				@headers = null
 				@data    = null
 				@crypto  = null
+				@time    = 0
 				@request = new RequestData!
 			###
-		RedirectData = (count) !->
+		###
+		RetryData = (count) !->
 			@count   = count
 			@current = 0
 		###
@@ -564,10 +564,11 @@ httpFetch = do ->
 			@promiseReject = config.promiseReject
 			@timeout       = 1000 * config.timeout
 			@parseResponse = config.parseResponse
-			# controllers and data
+			# controllers and their data
+			@callback  = null
 			@promise   = null
 			@response  = new ResponseData!
-			@redirect  = new RedirectData config.redirectCount
+			@redirect  = new RetryData config.redirectCount
 			@aborter   = null
 			@timer     = 0
 			@timerFunc = (force) !~>
@@ -580,301 +581,313 @@ httpFetch = do ->
 				@timer = 0
 	# }}}
 	FetchStream = do -> # {{{
-		FetchStream = (stream, data, sec) !-> # {{{
-			# ReadableStream wrapper
-			# initialize
-			# get ResponseData
-			res = data.response
-			# get reader
-			# ReadableStreamBYOBReader?
-			# BYOB: bring your own buffer (to optimise reading)
-			# reader = stream.getReader {mode: 'byob'}
-			reader = stream.getReader!
-			# get content size
-			size = if res.headers['content-length']
+		nullResolved = do -> # {{{
+			return new Promise (resolve) !->
+				resolve null
+		# }}}
+		StreamChunk = (size) !-> # {{{
+			@dose = 0
+			@data = if size
+				then new Uint8Array size
+				else null
+		# }}}
+		newStreamBuffer = (buf, pos) -> # {{{
+			a = new StreamChunk 0
+			a.data = buf
+			a.dose = pos
+			return a
+		# }}}
+		###
+		# ReadableStream wrapper
+		FetchStream = (stream, data, sec) !->
+			# initialize private variables
+			reader = stream.getReader! #getReader {mode: 'byob'}
+			res    = data.response
+			pause  = false
+			locked = null
+			chunk  = null
+			buffer = null
+			time   = 0
+			size   = if res.headers['content-length']
 				then parseInt res.headers['content-length']
 				else 0
-			# create handlers
+			# create helpers
+			readStart = ~> # {{{
+				# reset pause
+				@paused = pause := false
+				# reset last error
+				@error = null
+				# check canceled
+				if not stream
+					return nullResolved
+				# store current timestamp
+				time := performance.now!
+				# start reading
+				return reader.read!
+					.then  readHandler, errorHandler
+					.catch errorHandler # guard readHandler throws
+			# }}}
 			readHandler = (c) ~> # {{{
-				# update offset
-				if not c.done
-					@offset += c.value.length
-				# update progress
-				if size > 0
-					@progress = @offset / size
-				# resolve
-				return if c.done
+				# accumulate latency
+				@latency += performance.now! - time
+				@timing  += @latency
+				# check canceled
+				if not stream
+					throw null
+				# get chunk data
+				c = if c.done
 					then null
 					else c.value
+				# check paused
+				if pause
+					return pause.then ~>
+						# reset pause
+						@paused = pause := false
+						# check canceled
+						if not stream
+							throw null
+						# complete
+						return readComplete c
+				# complete
+				return readComplete c
 			# }}}
 			errorHandler = (e) ~> # {{{
 				# set error
-				@error = new FetchError 5, 'read stream failed: '+e.message, res
-				# reject
-				if data.promiseReject
-					throw @error
+				@error = if stream
+					then new FetchError 0, 'stream failed: '+e.message
+					else new FetchError 4, 'stream canceled'
 				# done
 				return null
 			# }}}
+			readComplete = (d) ~> # {{{
+				###
+				# assemble the chunk
+				if chunk
+					# prepare
+					a = chunk.dose
+					b = chunk.data.byteLength - a
+					# check dose
+					if d
+						# new dose arrived
+						# check the inflation
+						if (c = d.byteLength) <= b
+							# new dose fits into chunk
+							# inject it
+							chunk.data.set d, a
+							# check for perfect fit
+							if (chunk.dose = a + c) == b
+								# exact assembly
+								# set the result and
+								# dispose the envelope
+								d = chunk.data
+								chunk := null
+								# proceed to completion..
+							else
+								# partial assembly
+								# repeat the read routine
+								return readStart!
+						else
+							# overdose
+							# inject partially
+							chunk.data.set (d.subarray 0, b), a
+							# allocate a buffer
+							buffer := newStreamBuffer d, b
+							# set the result and
+							# dispose the envelope
+							d = chunk.data
+							chunk := null
+							# proceed to completion..
+					else
+						# no more dosage
+						# extract remains and
+						# dispose the envelope
+						d = chunk.data.slice 0, a
+						chunk := null
+						# finish up
+						@cancel!
+				else if not d
+					# finish up
+					@cancel!
+				###
+				# unlock for the next read
+				locked := null
+				# update progress
+				if size > 0
+					if d
+						@offset  += d.length
+						@progress = @offset / size
+					else
+						@offset   = size
+						@progress = 1
+				# done
+				return d
+			# }}}
+			readBufComplete = ~> # {{{
+				# check canceled
+				if not stream
+					return null
+				# get data
+				d = chunk.data
+				# dispose the envelope and
+				# unlock for the next read
+				chunk := locked := pause := null
+				# update progress
+				if size > 0
+					@offset  += d.length
+					@progress = @offset / size
+				# done
+				return d
+			# }}}
 			# create object shape
-			@offset = 0
+			# {{{
+			@offset   = 0
 			@progress = 0.00
-			@error = null
-			@response = res
-			@read = ->
-				# reset error
-				@error = null
-				# handle reading
-				reader.read!
-					.then  readHandler
-					.catch errorHandler
+			@latency  = 0
+			@timing   = 0
+			@error    = null
+			@paused   = false
+			@response = res  = data.response
+			@size     = size = if res.headers['content-length']
+				then parseInt res.headers['content-length']
+				else 0
+			# }}}
+			@read = (chunkSize) ~> # {{{
+				# check canceled
+				if not stream
+					return nullResolved
+				# check read lock (repeated calls)
+				if locked
+					return locked
+				# reset latency
+				@latency = 0
+				# check chunked
+				if not chunk and chunkSize and chunkSize > 0
+					chunk := new StreamChunk chunkSize
+				# check buffered
+				if buffer
+					if chunk
+						# assemble the chunk
+						# prepare
+						a = chunk.dose
+						b = chunk.data.byteLength - chunk.dose
+						c = buffer.data.byteLength - buffer.dose
+						# check buffer state
+						if c >= b
+							# active buffer
+							# get dose
+							b = buffer.dose + b
+							c = buffer.data.subarray buffer.dose, b
+							buffer.dose = b
+							# inject
+							chunk.data.set c, a
+							# complete
+							return locked := if pause
+								then pause.then readBufComplete
+								else nullResolved.then readBufComplete
+						else
+							# exhausted buffer
+							# get the remains
+							b = buffer.dose + c
+							c = buffer.data.subarray buffer.dose, b
+							# inject
+							chunk.data.set c, a
+							chunk.dose += c.byteLength
+							# dispose
+							buffer := null
+							# continue reading
+							return locked := if pause
+								then pause.then readStart
+								else readStart!
+					else
+						# TODO: test
+						# eject buffer remains
+						# into temporary chunk
+						debugger
+						c = buffer.data.slice 0, buffer.dose
+						chunk := newStreamBuffer c, 0
+						# dispose
+						buffer := null
+						# complete
+						return locked := if pause
+							then pause.then readBufComplete
+							else nullResolved.then readBufComplete
+				# lock and start reading
+				return locked := if pause
+					then pause.then readStart
+					else readStart!
+			# }}}
+			@pause = ~> # {{{
+				# check canceled or paused
+				if not stream or pause
+					return false
+				# set flag
+				@paused = true
+				# set promise
+				a = null
+				pause := new Promise (resolve) !->
+					a := resolve
+				# expose promise resolver
+				pause.resolve = a
+				return true
+			# }}}
+			@resume = ~> # {{{
+				# check not paused
+				if not pause
+					return false
+				# unpause
+				pause.resolve!
+				return true
+			# }}}
+			@cancel = ~> # {{{
+				# check already canceled
+				if not stream
+					return false
+				# cancel stream
+				reader.cancel!
+				reader.releaseLock!
+				# dispose variables
+				reader := stream := null
+				# unpause
+				pause.resolve! if pause
+				# done
+				return true
+			# }}}
 		###
-		#FetchStream.prototype = {
-		#}
-		# }}}
 		return FetchStream
 	# }}}
 	FetchHandler = (config) !-> # {{{
-		###
-		handler = (data, options, callback) !-> # {{{
-			# prepare
-			res = data.response
-			sec = config.secret
-			responseHandler = (r) -> # {{{
-				# terminate timer
-				if data.timer
-					data.timerFunc true
-				# initialize fetch response
-				res.type    = r.type
-				res.status  = r.status
-				res.headers = h = {}
-				# set headers
-				a = r.headers.entries!
-				while not (b = a.next!).done
-					h[b.value.0.toLowerCase!] = b.value.1
-				# check status range
-				if not r.ok
-					# handle redirection
-					# RFC7231§6.4: The 3xx (Redirection) class of status code indicates
-					# that further action needs to be taken by the user agent in order to
-					# fulfill the request. If a Location header field is provided,
-					# the user agent MAY automatically redirect its request to the URI
-					# referenced by the Location field value,
-					# even if the specific status code is not understood.
-					if options.redirect == 'manual' and \
-					   ((r.status >= 300 and r.status < 400) or \
-					    (r.type == 'opaqueredirect'))
-						###
-						# check opaque (always? forever?)
-						if r.type == 'opaqueredirect'
-							throw new FetchError 0, 'opaque redirect', res
-						# check allowed
-						if not (a = data.redirect).count
-							throw new FetchError 0, 'no redirects allowed', res
-						# allow infinite redirects (hell yeah)
-						if a.count > 0
-							# increase counter
-							if ++a.current > a.count
-								throw new FetchError 0, 'too many redirects', res
-						# follow location
-						# ...
-						throw new FetchError 3, 'not implemented yet :(', res
-					# unsuccessful status (not in range 200-299)
-					throw new FetchError 0, 'unsuccessful response status', res
-				# check HTTP status 200 (KISS API)
-				if r.status != 200 and data.status200
-					throw new FetchError 0, 'HTTP status 200 required', res
-				# check opaque
-				if r.type == 'opaque'
-					# check encrypted
-					if sec
-						# can't access data === can't decrypt
-						throw new FetchError 1, 'encrypted opaque response', res
-					# an opaque response may probably be consumed by another API
-					return r
-				# check parsing mode
-				switch data.parseResponse
-				case 'stream'
-					# multiple chunks of data
-					return new FetchStream r.body, data, sec
-				case 'data'
-					# single chunk of data
-					# encrypted request must get encrypted response
-					if sec
-						# content is always handled as binary
-						return r.arrayBuffer!
-					# check accepted content type
-					b = h['content-type'] or ''
-					if a = options.headers.accept
-						# prefer own setting and
-						# loose match it against server
-						if b and (b.indexOf a) != 0
-							throw new FetchError 1, 'incorrect content-type header', res
-					else
-						# use server setting
-						a = b
-					# return parsed content
-					switch 0
-					case a.indexOf 'application/json'
-						# JSON:
-						# - not using .json, because response with empty body
-						#   will throw error at no-cors opaque mode (who needs that?)
-						# - the UTF-8 BOM, must not be added, but if present,
-						#   will be stripped by .text
-						return r.text!then jsonDecode
-					case a.indexOf 'application/octet-stream'
-						# binary
-						return r.arrayBuffer!
-					case a.indexOf 'text/'
-						# plaintext
-						return r.text!
-					case (a.indexOf 'image/'), \
-							(a.indexOf 'audio/'), \
-							(a.indexOf 'video/')
-						# blob
-						return r.blob!
-					case a.indexOf 'multipart/form-data'
-						# FormData
-						return r.formData!
-					default
-						# assume binary
-						return r.arrayBuffer!
-				# dont parse the response
-				return r
-			# }}}
-			sec and decryptHandler = (buf) -> # {{{
-				# check for empty response
-				if buf.byteLength == 0
-					return null
-				# start decryption
-				a = sec.decrypt buf, res.request.crypto.params
-				# wait
-				return a.data.then (d) ->
-					# check decryption successful
-					if d == null
-						d = new FetchError 2, 'decryption failed', res
-						sec.manager 'fail', d
-						throw d
-					# store
-					a.data = buf
-					res.crypto = a
-					# update secret
-					sec.save!
-					# parse content
-					c = options.headers.accept or res.headers['content-type'] or ''
-					switch 0
-					case c.indexOf 'application/json'
-						# Object
-						c = jsonDecode d
-					case c.indexOf 'text/'
-						# String
-						c = textDecode d
-					default
-						# Binary, as is
-						c = d
-					# done
-					return c
-			# }}}
-			successHandler = (d) !-> # {{{
-				# detect nulls unified
-				switch typeof! d
-				case 'Blob'
-					d = null if d.size == 0
-				case 'ArrayBuffer'
-					d = null if d.byteLength == 0
-				# prevent nulls
-				if data.notNull and d == null
-					throw new FetchError 1, 'response is null', res
-				# prepare result
-				if data.fullHouse and data.parseResponse == 'data'
-					res.data = d
-					d = res
-				# SUCCESS
-				if callback
-					if (a = callback true, d, res.request) and \
-					   (a instanceof Promise)
-						###
-						# retry request with async callback
-						a.then (retry) !->
-							handler data, options, callback if retry
-				else
-					data.promise.pending = false
-					data.promise.resolve d
-			# }}}
-			errorHandler = (e) !-> # {{{
-				# analyze
-				# check cancellation
-				if options.signal.aborted
-					# determine variant and
-					# replace standard Error
-					e = if data.timeout and not data.timer
-						then new FetchError 0, 'connection timed out', res
-						else new FetchError 4, e.message, res
-				# terminate timer
-				if data.timer
-					data.timerFunc true
-				# wrap unknown
-				if not e.hasOwnProperty 'id'
-					e = new FetchError 5, e.message, res
-				# dont forget the response!
-				if not e.response
-					e.response = res
-					e.status = res.status
-				# FAIL
-				if callback
-					if (a = callback false, e, res.request) and \
-					   (a instanceof Promise)
-						###
-						# retry request with async callback
-						a.then (retry) !->
-							handler data, options, callback if retry
-				else
-					data.promise.pending = false
-					if data.promiseReject
-						data.promise.reject e
-					else
-						data.promise.resolve e
-			# }}}
-			# set timer
-			if data.timeout
-				data.timer = setTimeout data.timerFunc, data.timeout
-			# invoke the api
-			htp = (fetch res.request.url, options)
-				.then responseHandler
-			# assemble handlers chain
-			if sec and res.parseResponse == 'data'
-				htp = htp.then decryptHandler
-			htp = htp.then successHandler
-				.catch errorHandler
-		# }}}
-		###
 		# create object shape
-		@config = config
-		@api    = new Api @
-		@fetch  = ->
-			# PREPARE BASE
+		@config  = config
+		@api     = new Api @
+		@store   = new Map!
+		@fetch   = ~> # {{{
+			# PREPARE
 			# {{{
-			# create important objects
-			o = new FetchOptions!
+			# create base objects
 			d = new FetchData config
-			r = d.response.request
+			o = new FetchOptions!
 			# parse arguments
 			if (e = parseArguments arguments) instanceof Error
-				# set dummy values
-				options  = {}
-				callback = false
+				# set dummy options
+				options = {}
 			else
-				# extract values
-				options  = e.0
-				callback = e.1
+				# set options
+				options = e.0
+				# select result handling mode
+				if e.1
+					d.callback = e.1
+				else
+					d.promise = newPromise d
 				# no error
 				e = false
+			# get request
+			r = d.response.request
 			# get data
 			if options.hasOwnProperty 'data'
 				data = options.data
 			# }}}
 			# INITIALIZE
-			# parse individual options {{{
+			# set request control options {{{
 			# set url
 			r.setUrl config.baseUrl, options.url
 			# set timeout
@@ -891,7 +904,13 @@ httpFetch = do ->
 			# set flags
 			for a in config.flagOptions when options.hasOwnProperty a
 				d[a] = !!options[a]
-			# set native
+			# set aborter
+			d.aborter = if (a = options.aborter) and a instanceof AbortController
+				then a
+				else new AbortController!
+			# set abort signal
+			o.signal = d.aborter.signal
+			# set native options
 			for a in config.fetchOptions
 				if options.hasOwnProperty a
 					o[a] = options[a]
@@ -903,7 +922,7 @@ httpFetch = do ->
 			else if options.hasOwnProperty 'data'
 				o.method = 'POST'
 			# }}}
-			# request headers and body {{{
+			# set headers and body {{{
 			# store new headers reference into request
 			r.headers = o.headers
 			# merge config
@@ -981,22 +1000,12 @@ httpFetch = do ->
 				# remove content-type header
 				delete o.headers['content-type']
 			# }}}
-			# request controllers {{{
-			# set aborter
-			d.aborter = if (a = options.aborter) and a instanceof AbortController
-				then a
-				else new AbortController!
-			# set abort signal
-			o.signal = d.aborter.signal
-			# set promise
-			if not callback
-				d.promise = newPromise d.aborter
-			# }}}
-			# check for instant error {{{
+			# check {{{
 			if e
+				# instant FetchError
 				# fail fast, but not faster
-				if callback
-					callback false, e
+				if d.callback
+					d.callback false, e
 					return d.aborter
 				else
 					d.promise.pending = false
@@ -1006,55 +1015,283 @@ httpFetch = do ->
 						d.promise.resolve e
 					return d.promise
 			# }}}
-			# RUN HANDLER
-			# check secret
+			# RUN
+			# {{{
 			if config.secret
 				# start encryption
-				data = config.secret.encrypt o.body, true
+				e = config.secret.encrypt o.body, true
 				# handle completion
-				data.data.then (e) !->
-					# successfully encrypted
-					# store properly
-					o.body = data.data = e
+				e.data.then (buf) !~>
+					# set encrypted data
+					o.body = e.data = buf
 					r.crypto = data
 					# check aborted
 					if o.signal.aborted
 						throw new FetchError 4, 'aborted programmatically'
-					# invoke handler
-					handler d, o, callback
-				.catch (e) !->
-					# wrap encryption errors
-					if not e.hasOwnProperty 'id'
-						e = new FetchError 2, 'encryption failed, '+e.message
-					# FAIL
-					if (a = callback false, e, res.request) and \
-					   (a instanceof Promise)
-						###
-						# retry request with async callback
-						a.then (retry) !->
-							handler data, options, callback if retry
-					else
-						d.promise.pending = false
-						if d.promiseReject
-							d.promise.reject e
-						else
-							d.promise.resolve e
+					# invoke
+					@handler d, o
+				.catch (e) !~>
+					# set encryption error
+					if not (e.hasOwnProperty 'id')
+						e = new FetchError 2, 'encryption failed: '+e.message
+					# fail
+					@fail d, e
 			else
-				# invoke handler
-				handler d, o, callback
+				# invoke
+				@handler d, o
 			# done
-			return if callback
+			return if d.callback
 				then d.aborter
 				else d.promise
-	###
-	FetchHandler.prototype = {} # global identifier
+			# }}}
+		# }}}
+		@handler = (data, options) !~> # {{{
+			# prepare
+			res = data.response
+			sec = config.secret if data.parseResponse == 'data'
+			# set timer
+			if data.timeout
+				data.timer = setTimeout data.timerFunc, data.timeout
+			# create handler routines
+			responseHandler = (r) ~> # {{{
+				# initialize the response
+				res.time    = performance.now!
+				res.type    = r.type
+				res.status  = r.status
+				res.headers = h = {}
+				# terminate timeout timer
+				if data.timer
+					data.timerFunc true
+				# collect headers
+				a = r.headers.entries!
+				while not (b = a.next!).done
+					h[b.value.0.toLowerCase!] = b.value.1
+				# check unsuccessful status range (not in 200-299)
+				if not r.ok
+					# check opaque
+					if r.type == 'opaqueredirect'
+						throw new FetchError 0, 'opaque redirect'
+					# check redirection
+					if r.status >= 300 and r.status <= 399
+						# check location specified
+						if not h.hasOwnProperty 'location'
+							throw new FetchError 0, 'no redirect location'
+						# check counter
+						if not (a = data.redirect).count
+							throw new FetchError 0, 'no more redirects allowed'
+						# limit finite redirection (infinite when <0)
+						if a.count > 0 and ++a.current > a.count
+							throw new FetchError 0, 'too many redirects'
+						# follow this redirect (retry)
+						res.request.url = h.location
+						@handler data, options
+						throw null
+						#throw new FetchError 3, 'not implemented yet'
+					# fail
+					throw new FetchError 0, 'unsuccessful response status'
+				# check HTTP status 200
+				if r.status != 200 and data.status200
+					throw new FetchError 0, 'HTTP status 200 required'
+				# check opaque
+				if r.type == 'opaque' and data.parseResponse
+					throw new FetchError 1, 'unable to parse opaque response'
+				# check parsing mode
+				switch data.parseResponse
+				case 'stream'
+					# multiple chunks of data
+					return new FetchStream r.body, data, sec
+				case 'data'
+					# single chunk of data
+					# encrypted request means encrypted response,
+					# so the content is always handled as binary
+					if sec
+						return r.arrayBuffer!
+					# check accepted content type
+					b = h['content-type'] or ''
+					if a = options.headers.accept
+						# prefer own setting and
+						# loose match it against server
+						if b and (b.indexOf a) != 0
+							throw new FetchError 1, 'incorrect content-type header'
+					else
+						# use server setting
+						a = b
+					# return parsed content
+					switch 0
+					case a.indexOf 'application/json'
+						# JSON:
+						# - not using .json, because response with empty body
+						#   will throw error at no-cors opaque mode (who needs that?)
+						# - the UTF-8 BOM, must not be added, but if present,
+						#   will be stripped by .text
+						return r.text!then jsonDecode
+					case a.indexOf 'application/octet-stream'
+						# binary
+						return r.arrayBuffer!
+					case a.indexOf 'text/'
+						# plaintext
+						return r.text!
+					case (a.indexOf 'image/'), \
+							(a.indexOf 'audio/'), \
+							(a.indexOf 'video/')
+						# blob
+						return r.blob!
+					case a.indexOf 'multipart/form-data'
+						# FormData
+						return r.formData!
+					default
+						# assume binary
+						return r.arrayBuffer!
+				# do not parse the response
+				return r
+			# }}}
+			sec and decryptHandler = (buf) -> # {{{
+				# check for empty response
+				if buf.byteLength == 0
+					return null
+				# decrypt data
+				a = sec.decrypt buf, res.request.crypto.params
+				# handle completion
+				return a.data.then (d) ->
+					# check successful
+					if d == null
+						d = new FetchError 2, 'decryption failed'
+						sec.manager 'fail', d
+						throw d
+					# store
+					a.data = buf
+					res.crypto = a
+					# update secret
+					sec.save!
+					# parse content
+					c = options.headers.accept or res.headers['content-type'] or ''
+					switch 0
+					case c.indexOf 'application/json'
+						# Object
+						c = jsonDecode d
+					case c.indexOf 'text/'
+						# String
+						c = textDecode d
+					default
+						# Binary, as is
+						c = d
+					# done
+					return c
+			# }}}
+			successHandler = (result) !~> # {{{
+				@success data, result
+			# }}}
+			errorHandler = (error) !~> # {{{
+				@fail data, error
+			# }}}
+			# set request time
+			res.request.time = performance.now!
+			# invoke the fetch api
+			if decryptHandler
+				fetch res.request.url, options
+					.then responseHandler
+					.then decryptHandler
+					.then successHandler, errorHandler
+			else
+				fetch res.request.url, options
+					.then responseHandler
+					.then successHandler, errorHandler
+			# store
+			@store.set data, options
+		# }}}
+	# httpFetch instance identifier
+	FetchHandler.prototype = {
+		success: (data, result) !-> # {{{
+			# unify nulls
+			switch typeof! result
+			case 'Blob'
+				result = null if result.size == 0
+			case 'ArrayBuffer'
+				result = null if result.byteLength == 0
+			# check nulls allowed
+			if data.notNull and result == null
+				throw new FetchError 1, 'response result is null'
+			# set response result
+			data.response.data = result
+			# set full result
+			if data.fullHouse and data.parseResponse == 'data'
+				result = data.response
+			# check mode
+			if data.callback
+				# callback
+				a = data.callback true, result
+				# check async
+				if a instanceof Promise
+					# get options
+					options = @store.get data
+					# enable request retries
+					a.then (retry) !~>
+						if retry
+							@handler data, options
+			else
+				# resolve promise
+				data.promise.pending = false
+				data.promise.resolve result
+			# cleanup
+			@store.delete data
+		# }}}
+		fail: (data, error) !-> # {{{
+			# internal retry (redirect)
+			if error == null
+				return
+			# get options and
+			# check cancellation
+			if (options = @store.get data) and \
+			   options.signal.aborted and \
+			   not (error.hasOwnProperty 'id')
+				###
+				# determine abortion type and
+				# replace standard error
+				error = if data.timeout and not data.timer
+					then new FetchError 0, 'connection timed out'
+					else new FetchError 4, error.message
+			# after cancelation check,
+			# terminate timeout timer
+			if data.timer
+				data.timerFunc true
+			# wrap unhandled error into FetchError
+			if not (error.hasOwnProperty 'id')
+				error = new FetchError 5, error.message
+			# attach the response
+			error.response = data.response
+			error.status = data.response.status
+			# check mode
+			if data.callback
+				# callback
+				a = data.callback false, error
+				# check async
+				if (a instanceof Promise) and options
+					# enable request retries
+					a.then (retry) !~>
+						if retry
+							@handler data, options
+			else
+				# resolve promise
+				data.promise.pending = false
+				if data.promiseReject
+					data.promise.reject error
+				else
+					data.promise.resolve error
+			# cleanup
+			@store.delete data
+		# }}}
+	}
 	# }}}
 	Api = (handler) !-> # {{{
 		###
-		# New instance
+		# new instance (fetchers group)
 		@create = newInstance handler.config
-		###
-		# HTML form request
+		# group cancellation
+		@cancel = -> # {{{
+			# TODO
+			return true
+		# }}}
+		# form enctypes request
 		@form = -> # {{{
 			# prepare
 			if (a = parseArguments arguments) instanceof Error
@@ -1310,7 +1547,7 @@ httpFetch = do ->
 		return (o) ->
 			return (add [], o, '').join '&'
 	# }}}
-	newPromise = (aborter) -> # {{{
+	newPromise = (fetchData) -> # {{{
 		# create standard promise and
 		# store resolvers
 		a = b = null
@@ -1321,8 +1558,9 @@ httpFetch = do ->
 		p.resolve = a
 		p.reject  = b
 		p.pending = true
-		p.controller = aborter
-		p.abort = p.cancel = !-> aborter.abort!
+		p.abort = p.cancel = !->
+			if fetchData.aborter
+				fetchData.aborter.abort!
 		# done
 		return p
 	# }}}

@@ -10,7 +10,7 @@ wrapper for the browser
 ## Tests
 - [**Fail**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-1.html): check everything
 - [**Cancellation**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-2.html): cancel anything
-- [**Encryption**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-3.html): encrypt everything ([FF only](https://en.wikipedia.org/wiki/Firefox)).
+- **Encryption**: encrypt everything ([FF only](https://en.wikipedia.org/wiki/Firefox))
 - [**Retry**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-4.html): restart anything
 - [**Download**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-5.html): download anything
 - **Upload**: upload anything
@@ -351,6 +351,7 @@ npm i http-fetch-json
         // - connection timed out
         // - wrong CORS headers
         // - unsuccessful HTTP STATUSes (not in 200-299 range)
+        // - readable stream failed
         // - etc
         ///
         console.log(res.message);   // error details
@@ -374,14 +375,16 @@ npm i http-fetch-json
         // incorrect API usage
         // - wrong syntax used
         // - something's wrong with the request data
-        // - internal problem
+        // - internal bug
         ///
         break;
       case 4:
         ///
         // aborted programmatically:
-        // - cancelled before the request was made
-        // - cancelled in the process, before response arrived
+        // - canceled parsing, before the request was made
+        // - canceled fetching, before the response arrived
+        // - canceled parsing, after the response arrived
+        // - stream canceled
         ///
         break;
       case 5:
@@ -399,12 +402,11 @@ npm i http-fetch-json
 <details>
   <summary>httpFetch.create</summary>
 
-  #### Description
-  Creates a new [instance of][116] of [`httpFetch`][0]
-  #### Syntax
   ### `httpFetch.create(config)`
   #### Parameters
   - **`config`** - [object][3] with options
+  #### Description
+  Creates a new [instance of][116] of [`httpFetch`][0]
   #### Examples
   ```javascript
   var a = httpFetch.create();
@@ -418,19 +420,25 @@ npm i http-fetch-json
   ```
 </details>
 <details>
+  <summary>httpFetch.cancel</summary>
+
+  ### `httpFetch.cancel()`
+  #### Description
+  Cancels all running fetches of the instance
+</details>
+<details>
   <summary>httpFetch.form</summary>
 
+  ### `httpFetch.form(url, data[, callback(ok, res)])`
+  ### `httpFetch.form(options[, callback(ok, res)])`
   #### Description
   [httpFetch][0] operates with [JSON][111] content by default.
   This shortcut method allows to send a `POST` request
-  with body conforming to one of [form enctypes][117]:
+  with body conforming to one of the [form enctypes][117]:
   - `application/x-www-form-urlencoded`: [query string](https://en.wikipedia.org/wiki/Query_string)
   - `multipart/form-data`: [`FormData`][13] with attachments
   - `text/plain`: [plaintext][2]
   The proper [content type][113] will be detected automatically.
-  #### Syntax
-  ### `httpFetch.form(url, data[, callback(ok, res)])`
-  ### `httpFetch.form(options[, callback(ok, res)])`
   #### Parameters
   Same as [`httpFetch`][0]
   #### Examples

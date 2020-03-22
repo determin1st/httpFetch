@@ -10,7 +10,7 @@ var test = async function() {
     var oFetch = soFetch.create({
         notNull: true, // treat nulls as errors
         headers: {
-            accept: 'application/json' // accept only JSON response
+            accept: 'application/json' // accept only JSON
         }
     });
     // set event handlers
@@ -61,7 +61,7 @@ var test = async function() {
             // lock
             this.disabled = true;
             // retry with async callback
-            oFetch('/tests/redirect-custom/-1', async function(ok, res, req) {
+            oFetch('/tests/redirect-custom/-1', async function(ok, res) {
                 while (true)
                 {
                     if (res instanceof Error)
@@ -78,9 +78,8 @@ var test = async function() {
                     {
                         // display redirection
                         a(res);
-                        // to follow custom redirect,
-                        // mutate request with different url
-                        req.setUrl(oFetch.baseUrl, res);
+                        // mutate request url to follow this redirect
+                        this.response.request.setUrl(oFetch.baseUrl, res);
                         break;
                     }
                     // unlock

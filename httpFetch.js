@@ -15,7 +15,7 @@ httpFetch = function(){
         return JSON.parse(s);
       } catch (e$) {
         e = e$;
-        throw new FetchError(1, 'incorrect JSON: ' + s, 0);
+        throw new FetchError(1, 'incorrect JSON: ' + s);
       }
     }
     return null;
@@ -460,19 +460,19 @@ httpFetch = function(){
   FetchError = function(){
     var FetchError;
     if (Error.captureStackTrace) {
-      FetchError = function(id, message, res){
+      FetchError = function(id, message){
         this.id = id;
         this.message = message;
-        this.response = res || null;
-        this.status = res ? res.status : 0;
+        this.response = null;
+        this.status = 0;
         Error.captureStackTrace(this, FetchError);
       };
     } else {
-      FetchError = function(id, message, res){
+      FetchError = function(id, message){
         this.id = id;
         this.message = message;
-        this.response = res || null;
-        this.status = res ? res.status : 0;
+        this.response = null;
+        this.status = 0;
         this.stack = new Error(message).stack;
       };
     }
@@ -480,34 +480,42 @@ httpFetch = function(){
     return FetchError;
   }();
   FetchData = function(){
-    var ResponseData, RedirectData, FetchData;
+    var ResponseData, RetryData, FetchData;
     ResponseData = function(){
       var RequestData, ResponseData;
       RequestData = function(){
-        this.url = null;
+        this.url = '';
         this.headers = null;
         this.data = null;
         this.crypto = null;
+        this.time = 0;
       };
       RequestData.prototype = {
-        setUrl: function(baseUrl, url){
+        setUrl: function(base, url){
           if (url) {
-            this.url = url.indexOf(':') === -1 ? baseUrl + url : url;
+            if (base && url.indexOf(':') === -1) {
+              this.url = base[base.length - 1] === '/' || url[0] === '/'
+                ? base + url
+                : base + '/' + url;
+            } else {
+              this.url = url;
+            }
           } else {
-            this.url = baseUrl;
+            this.url = base;
           }
         }
       };
       return ResponseData = function(){
         this.status = 0;
-        this.type = null;
+        this.type = '';
         this.headers = null;
         this.data = null;
         this.crypto = null;
+        this.time = 0;
         this.request = new RequestData();
       };
     }();
-    RedirectData = function(count){
+    RetryData = function(count){
       this.count = count;
       this.current = 0;
     };
@@ -519,9 +527,10 @@ httpFetch = function(){
       this.promiseReject = config.promiseReject;
       this.timeout = 1000 * config.timeout;
       this.parseResponse = config.parseResponse;
+      this.callback = null;
       this.promise = null;
       this.response = new ResponseData();
-      this.redirect = new RedirectData(config.redirectCount);
+      this.redirect = new RetryData(config.redirectCount);
       this.aborter = null;
       this.timer = 0;
       this.timerFunc = function(force){
@@ -535,240 +544,234 @@ httpFetch = function(){
     };
   }();
   FetchStream = function(){
-    var FetchStream;
+    var nullResolved, StreamChunk, newStreamBuffer, FetchStream;
+    nullResolved = function(){
+      return new Promise(function(resolve){
+        resolve(null);
+      });
+    }();
+    StreamChunk = function(size){
+      this.dose = 0;
+      this.data = size ? new Uint8Array(size) : null;
+    };
+    newStreamBuffer = function(buf, pos){
+      var a;
+      a = new StreamChunk(0);
+      a.data = buf;
+      a.dose = pos;
+      return a;
+    };
     FetchStream = function(stream, data, sec){
-      var res, reader, size, readHandler, errorHandler, this$ = this;
-      res = data.response;
+      var reader, res, pause, locked, chunk, buffer, time, size, readStart, readHandler, errorHandler, readComplete, readBufComplete, this$ = this;
       reader = stream.getReader();
+      res = data.response;
+      pause = false;
+      locked = null;
+      chunk = null;
+      buffer = null;
+      time = 0;
       size = res.headers['content-length'] ? parseInt(res.headers['content-length']) : 0;
+      readStart = function(){
+        this$.paused = pause = false;
+        this$.error = null;
+        if (!stream) {
+          return nullResolved;
+        }
+        time = performance.now();
+        return reader.read().then(readHandler, errorHandler)['catch'](errorHandler);
+      };
       readHandler = function(c){
-        if (!c.done) {
-          this$.offset += c.value.length;
+        this$.latency += performance.now() - time;
+        this$.timing += this$.latency;
+        if (!stream) {
+          throw null;
         }
-        if (size > 0) {
-          this$.progress = this$.offset / size;
-        }
-        return c.done
+        c = c.done
           ? null
           : c.value;
+        if (pause) {
+          return pause.then(function(){
+            this$.paused = pause = false;
+            if (!stream) {
+              throw null;
+            }
+            return readComplete(c);
+          });
+        }
+        return readComplete(c);
       };
       errorHandler = function(e){
-        this$.error = new FetchError(5, 'read stream failed: ' + e.message, res);
-        if (data.promiseReject) {
-          throw this$.error;
-        }
+        this$.error = stream
+          ? new FetchError(0, 'stream failed: ' + e.message)
+          : new FetchError(4, 'stream canceled');
         return null;
+      };
+      readComplete = function(d){
+        var a, b, c;
+        if (chunk) {
+          a = chunk.dose;
+          b = chunk.data.byteLength - a;
+          if (d) {
+            if ((c = d.byteLength) <= b) {
+              chunk.data.set(d, a);
+              if ((chunk.dose = a + c) === b) {
+                d = chunk.data;
+                chunk = null;
+              } else {
+                return readStart();
+              }
+            } else {
+              chunk.data.set(d.subarray(0, b), a);
+              buffer = newStreamBuffer(d, b);
+              d = chunk.data;
+              chunk = null;
+            }
+          } else {
+            d = chunk.data.slice(0, a);
+            chunk = null;
+            this$.cancel();
+          }
+        } else if (!d) {
+          this$.cancel();
+        }
+        locked = null;
+        if (size > 0) {
+          if (d) {
+            this$.offset += d.length;
+            this$.progress = this$.offset / size;
+          } else {
+            this$.offset = size;
+            this$.progress = 1;
+          }
+        }
+        return d;
+      };
+      readBufComplete = function(){
+        var d;
+        if (!stream) {
+          return null;
+        }
+        d = chunk.data;
+        chunk = locked = pause = null;
+        if (size > 0) {
+          this$.offset += d.length;
+          this$.progress = this$.offset / size;
+        }
+        return d;
       };
       this.offset = 0;
       this.progress = 0.00;
+      this.latency = 0;
+      this.timing = 0;
       this.error = null;
-      this.response = res;
-      this.read = function(){
-        this.error = null;
-        return reader.read().then(readHandler)['catch'](errorHandler);
+      this.paused = false;
+      this.response = res = data.response;
+      this.size = size = res.headers['content-length'] ? parseInt(res.headers['content-length']) : 0;
+      this.read = function(chunkSize){
+        var a, b, c;
+        if (!stream) {
+          return nullResolved;
+        }
+        if (locked) {
+          return locked;
+        }
+        this$.latency = 0;
+        if (!chunk && chunkSize && chunkSize > 0) {
+          chunk = new StreamChunk(chunkSize);
+        }
+        if (buffer) {
+          if (chunk) {
+            a = chunk.dose;
+            b = chunk.data.byteLength - chunk.dose;
+            c = buffer.data.byteLength - buffer.dose;
+            if (c >= b) {
+              b = buffer.dose + b;
+              c = buffer.data.subarray(buffer.dose, b);
+              buffer.dose = b;
+              chunk.data.set(c, a);
+              return locked = pause
+                ? pause.then(readBufComplete)
+                : nullResolved.then(readBufComplete);
+            } else {
+              b = buffer.dose + c;
+              c = buffer.data.subarray(buffer.dose, b);
+              chunk.data.set(c, a);
+              chunk.dose += c.byteLength;
+              buffer = null;
+              return locked = pause
+                ? pause.then(readStart)
+                : readStart();
+            }
+          } else {
+            debugger;
+            c = buffer.data.slice(0, buffer.dose);
+            chunk = newStreamBuffer(c, 0);
+            buffer = null;
+            return locked = pause
+              ? pause.then(readBufComplete)
+              : nullResolved.then(readBufComplete);
+          }
+        }
+        return locked = pause
+          ? pause.then(readStart)
+          : readStart();
+      };
+      this.pause = function(){
+        var a;
+        if (!stream || pause) {
+          return false;
+        }
+        this$.paused = true;
+        a = null;
+        pause = new Promise(function(resolve){
+          a = resolve;
+        });
+        pause.resolve = a;
+        return true;
+      };
+      this.resume = function(){
+        if (!pause) {
+          return false;
+        }
+        pause.resolve();
+        return true;
+      };
+      this.cancel = function(){
+        if (!stream) {
+          return false;
+        }
+        reader.cancel();
+        reader.releaseLock();
+        reader = stream = null;
+        if (pause) {
+          pause.resolve();
+        }
+        return true;
       };
     };
     return FetchStream;
   }();
   FetchHandler = function(config){
-    var handler;
-    handler = function(data, options, callback){
-      var res, sec, responseHandler, decryptHandler, successHandler, errorHandler, htp;
-      res = data.response;
-      sec = config.secret;
-      responseHandler = function(r){
-        var h, a, b;
-        if (data.timer) {
-          data.timerFunc(true);
-        }
-        res.type = r.type;
-        res.status = r.status;
-        res.headers = h = {};
-        a = r.headers.entries();
-        while (!(b = a.next()).done) {
-          h[b.value[0].toLowerCase()] = b.value[1];
-        }
-        if (!r.ok) {
-          if (options.redirect === 'manual' && ((r.status >= 300 && r.status < 400) || r.type === 'opaqueredirect')) {
-            if (r.type === 'opaqueredirect') {
-              throw new FetchError(0, 'opaque redirect', res);
-            }
-            if (!(a = data.redirect).count) {
-              throw new FetchError(0, 'no redirects allowed', res);
-            }
-            if (a.count > 0) {
-              if (++a.current > a.count) {
-                throw new FetchError(0, 'too many redirects', res);
-              }
-            }
-            throw new FetchError(3, 'not implemented yet :(', res);
-          }
-          throw new FetchError(0, 'unsuccessful response status', res);
-        }
-        if (r.status !== 200 && data.status200) {
-          throw new FetchError(0, 'HTTP status 200 required', res);
-        }
-        if (r.type === 'opaque') {
-          if (sec) {
-            throw new FetchError(1, 'encrypted opaque response', res);
-          }
-          return r;
-        }
-        switch (data.parseResponse) {
-        case 'stream':
-          return new FetchStream(r.body, data, sec);
-        case 'data':
-          if (sec) {
-            return r.arrayBuffer();
-          }
-          b = h['content-type'] || '';
-          if (a = options.headers.accept) {
-            if (b && b.indexOf(a) !== 0) {
-              throw new FetchError(1, 'incorrect content-type header', res);
-            }
-          } else {
-            a = b;
-          }
-          switch (0) {
-          case a.indexOf('application/json'):
-            return r.text().then(jsonDecode);
-          case a.indexOf('application/octet-stream'):
-            return r.arrayBuffer();
-          case a.indexOf('text/'):
-            return r.text();
-          case a.indexOf('image/'):
-          case a.indexOf('audio/'):
-          case a.indexOf('video/'):
-            return r.blob();
-          case a.indexOf('multipart/form-data'):
-            return r.formData();
-          default:
-            return r.arrayBuffer();
-          }
-        }
-        return r;
-      };
-      sec && (decryptHandler = function(buf){
-        var a;
-        if (buf.byteLength === 0) {
-          return null;
-        }
-        a = sec.decrypt(buf, res.request.crypto.params);
-        return a.data.then(function(d){
-          var c;
-          if (d === null) {
-            d = new FetchError(2, 'decryption failed', res);
-            sec.manager('fail', d);
-            throw d;
-          }
-          a.data = buf;
-          res.crypto = a;
-          sec.save();
-          c = options.headers.accept || res.headers['content-type'] || '';
-          switch (0) {
-          case c.indexOf('application/json'):
-            c = jsonDecode(d);
-            break;
-          case c.indexOf('text/'):
-            c = textDecode(d);
-            break;
-          default:
-            c = d;
-          }
-          return c;
-        });
-      });
-      successHandler = function(d){
-        var a;
-        switch (toString$.call(d).slice(8, -1)) {
-        case 'Blob':
-          if (d.size === 0) {
-            d = null;
-          }
-          break;
-        case 'ArrayBuffer':
-          if (d.byteLength === 0) {
-            d = null;
-          }
-        }
-        if (data.notNull && d === null) {
-          throw new FetchError(1, 'response is null', res);
-        }
-        if (data.fullHouse && data.parseResponse === 'data') {
-          res.data = d;
-          d = res;
-        }
-        if (callback) {
-          if ((a = callback(true, d, res.request)) && a instanceof Promise) {
-            a.then(function(retry){
-              if (retry) {
-                handler(data, options, callback);
-              }
-            });
-          }
-        } else {
-          data.promise.pending = false;
-          data.promise.resolve(d);
-        }
-      };
-      errorHandler = function(e){
-        var a;
-        if (options.signal.aborted) {
-          e = data.timeout && !data.timer
-            ? new FetchError(0, 'connection timed out', res)
-            : new FetchError(4, e.message, res);
-        }
-        if (data.timer) {
-          data.timerFunc(true);
-        }
-        if (!e.hasOwnProperty('id')) {
-          e = new FetchError(5, e.message, res);
-        }
-        if (!e.response) {
-          e.response = res;
-          e.status = res.status;
-        }
-        if (callback) {
-          if ((a = callback(false, e, res.request)) && a instanceof Promise) {
-            a.then(function(retry){
-              if (retry) {
-                handler(data, options, callback);
-              }
-            });
-          }
-        } else {
-          data.promise.pending = false;
-          if (data.promiseReject) {
-            data.promise.reject(e);
-          } else {
-            data.promise.resolve(e);
-          }
-        }
-      };
-      if (data.timeout) {
-        data.timer = setTimeout(data.timerFunc, data.timeout);
-      }
-      htp = fetch(res.request.url, options).then(responseHandler);
-      if (sec && res.parseResponse === 'data') {
-        htp = htp.then(decryptHandler);
-      }
-      htp = htp.then(successHandler)['catch'](errorHandler);
-    };
+    var this$ = this;
     this.config = config;
     this.api = new Api(this);
+    this.store = new Map();
     this.fetch = function(){
-      var o, d, r, e, options, callback, data, a, i$, ref$, len$, b, c;
-      o = new FetchOptions();
+      var d, o, e, options, r, data, a, i$, ref$, len$, b, c;
       d = new FetchData(config);
-      r = d.response.request;
+      o = new FetchOptions();
       if ((e = parseArguments(arguments)) instanceof Error) {
         options = {};
-        callback = false;
       } else {
         options = e[0];
-        callback = e[1];
+        if (e[1]) {
+          d.callback = e[1];
+        } else {
+          d.promise = newPromise(d);
+        }
         e = false;
       }
+      r = d.response.request;
       if (options.hasOwnProperty('data')) {
         data = options.data;
       }
@@ -788,6 +791,10 @@ httpFetch = function(){
           d[a] = !!options[a];
         }
       }
+      d.aborter = (a = options.aborter) && a instanceof AbortController
+        ? a
+        : new AbortController();
+      o.signal = d.aborter.signal;
       for (i$ = 0, len$ = (ref$ = config.fetchOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];
         if (options.hasOwnProperty(a)) {
@@ -864,16 +871,9 @@ httpFetch = function(){
       } else {
         delete o.headers['content-type'];
       }
-      d.aborter = (a = options.aborter) && a instanceof AbortController
-        ? a
-        : new AbortController();
-      o.signal = d.aborter.signal;
-      if (!callback) {
-        d.promise = newPromise(d.aborter);
-      }
       if (e) {
-        if (callback) {
-          callback(false, e);
+        if (d.callback) {
+          d.callback(false, e);
           return d.aborter;
         } else {
           d.promise.pending = false;
@@ -886,46 +886,235 @@ httpFetch = function(){
         }
       }
       if (config.secret) {
-        data = config.secret.encrypt(o.body, true);
-        data.data.then(function(e){
-          o.body = data.data = e;
+        e = config.secret.encrypt(o.body, true);
+        e.data.then(function(buf){
+          o.body = e.data = buf;
           r.crypto = data;
           if (o.signal.aborted) {
             throw new FetchError(4, 'aborted programmatically');
           }
-          handler(d, o, callback);
+          this$.handler(d, o);
         })['catch'](function(e){
-          var a;
           if (!e.hasOwnProperty('id')) {
-            e = new FetchError(2, 'encryption failed, ' + e.message);
+            e = new FetchError(2, 'encryption failed: ' + e.message);
           }
-          if ((a = callback(false, e, res.request)) && a instanceof Promise) {
-            a.then(function(retry){
-              if (retry) {
-                handler(data, options, callback);
-              }
-            });
-          } else {
-            d.promise.pending = false;
-            if (d.promiseReject) {
-              d.promise.reject(e);
-            } else {
-              d.promise.resolve(e);
-            }
-          }
+          this$.fail(d, e);
         });
       } else {
-        handler(d, o, callback);
+        this$.handler(d, o);
       }
-      return callback
+      return d.callback
         ? d.aborter
         : d.promise;
     };
+    this.handler = function(data, options){
+      var res, sec, responseHandler, decryptHandler, successHandler, errorHandler;
+      res = data.response;
+      if (data.parseResponse === 'data') {
+        sec = config.secret;
+      }
+      if (data.timeout) {
+        data.timer = setTimeout(data.timerFunc, data.timeout);
+      }
+      responseHandler = function(r){
+        var h, a, b;
+        res.time = performance.now();
+        res.type = r.type;
+        res.status = r.status;
+        res.headers = h = {};
+        if (data.timer) {
+          data.timerFunc(true);
+        }
+        a = r.headers.entries();
+        while (!(b = a.next()).done) {
+          h[b.value[0].toLowerCase()] = b.value[1];
+        }
+        if (!r.ok) {
+          if (r.type === 'opaqueredirect') {
+            throw new FetchError(0, 'opaque redirect');
+          }
+          if (r.status >= 300 && r.status <= 399) {
+            if (!h.hasOwnProperty('location')) {
+              throw new FetchError(0, 'no redirect location');
+            }
+            if (!(a = data.redirect).count) {
+              throw new FetchError(0, 'no more redirects allowed');
+            }
+            if (a.count > 0 && ++a.current > a.count) {
+              throw new FetchError(0, 'too many redirects');
+            }
+            res.request.url = h.location;
+            this$.handler(data, options);
+            throw null;
+          }
+          throw new FetchError(0, 'unsuccessful response status');
+        }
+        if (r.status !== 200 && data.status200) {
+          throw new FetchError(0, 'HTTP status 200 required');
+        }
+        if (r.type === 'opaque' && data.parseResponse) {
+          throw new FetchError(1, 'unable to parse opaque response');
+        }
+        switch (data.parseResponse) {
+        case 'stream':
+          return new FetchStream(r.body, data, sec);
+        case 'data':
+          if (sec) {
+            return r.arrayBuffer();
+          }
+          b = h['content-type'] || '';
+          if (a = options.headers.accept) {
+            if (b && b.indexOf(a) !== 0) {
+              throw new FetchError(1, 'incorrect content-type header');
+            }
+          } else {
+            a = b;
+          }
+          switch (0) {
+          case a.indexOf('application/json'):
+            return r.text().then(jsonDecode);
+          case a.indexOf('application/octet-stream'):
+            return r.arrayBuffer();
+          case a.indexOf('text/'):
+            return r.text();
+          case a.indexOf('image/'):
+          case a.indexOf('audio/'):
+          case a.indexOf('video/'):
+            return r.blob();
+          case a.indexOf('multipart/form-data'):
+            return r.formData();
+          default:
+            return r.arrayBuffer();
+          }
+        }
+        return r;
+      };
+      sec && (decryptHandler = function(buf){
+        var a;
+        if (buf.byteLength === 0) {
+          return null;
+        }
+        a = sec.decrypt(buf, res.request.crypto.params);
+        return a.data.then(function(d){
+          var c;
+          if (d === null) {
+            d = new FetchError(2, 'decryption failed');
+            sec.manager('fail', d);
+            throw d;
+          }
+          a.data = buf;
+          res.crypto = a;
+          sec.save();
+          c = options.headers.accept || res.headers['content-type'] || '';
+          switch (0) {
+          case c.indexOf('application/json'):
+            c = jsonDecode(d);
+            break;
+          case c.indexOf('text/'):
+            c = textDecode(d);
+            break;
+          default:
+            c = d;
+          }
+          return c;
+        });
+      });
+      successHandler = function(result){
+        this$.success(data, result);
+      };
+      errorHandler = function(error){
+        this$.fail(data, error);
+      };
+      res.request.time = performance.now();
+      if (decryptHandler) {
+        fetch(res.request.url, options).then(responseHandler).then(decryptHandler).then(successHandler, errorHandler);
+      } else {
+        fetch(res.request.url, options).then(responseHandler).then(successHandler, errorHandler);
+      }
+      this$.store.set(data, options);
+    };
   };
-  FetchHandler.prototype = {};
+  FetchHandler.prototype = {
+    success: function(data, result){
+      var a, options, this$ = this;
+      switch (toString$.call(result).slice(8, -1)) {
+      case 'Blob':
+        if (result.size === 0) {
+          result = null;
+        }
+        break;
+      case 'ArrayBuffer':
+        if (result.byteLength === 0) {
+          result = null;
+        }
+      }
+      if (data.notNull && result === null) {
+        throw new FetchError(1, 'response result is null');
+      }
+      data.response.data = result;
+      if (data.fullHouse && data.parseResponse === 'data') {
+        result = data.response;
+      }
+      if (data.callback) {
+        a = data.callback(true, result);
+        if (a instanceof Promise) {
+          options = this.store.get(data);
+          a.then(function(retry){
+            if (retry) {
+              this$.handler(data, options);
+            }
+          });
+        }
+      } else {
+        data.promise.pending = false;
+        data.promise.resolve(result);
+      }
+      this.store['delete'](data);
+    },
+    fail: function(data, error){
+      var options, a, this$ = this;
+      if (error === null) {
+        return;
+      }
+      if ((options = this.store.get(data)) && options.signal.aborted && !error.hasOwnProperty('id')) {
+        error = data.timeout && !data.timer
+          ? new FetchError(0, 'connection timed out')
+          : new FetchError(4, error.message);
+      }
+      if (data.timer) {
+        data.timerFunc(true);
+      }
+      if (!error.hasOwnProperty('id')) {
+        error = new FetchError(5, error.message);
+      }
+      error.response = data.response;
+      error.status = data.response.status;
+      if (data.callback) {
+        a = data.callback(false, error);
+        if (a instanceof Promise && options) {
+          a.then(function(retry){
+            if (retry) {
+              this$.handler(data, options);
+            }
+          });
+        }
+      } else {
+        data.promise.pending = false;
+        if (data.promiseReject) {
+          data.promise.reject(error);
+        } else {
+          data.promise.resolve(error);
+        }
+      }
+      this.store['delete'](data);
+    }
+  };
   Api = function(handler){
     var handshakeLocked;
     this.create = newInstance(handler.config);
+    this.cancel = function(){
+      return true;
+    };
     this.form = function(){
       var a, b, c;
       if ((a = parseArguments(arguments)) instanceof Error) {
@@ -1174,7 +1363,7 @@ httpFetch = function(){
       return add([], o, '').join('&');
     };
   }();
-  newPromise = function(aborter){
+  newPromise = function(fetchData){
     var a, b, p;
     a = b = null;
     p = new Promise(function(resolve, reject){
@@ -1184,9 +1373,10 @@ httpFetch = function(){
     p.resolve = a;
     p.reject = b;
     p.pending = true;
-    p.controller = aborter;
     p.abort = p.cancel = function(){
-      aborter.abort();
+      if (fetchData.aborter) {
+        fetchData.aborter.abort();
+      }
     };
     return p;
   };

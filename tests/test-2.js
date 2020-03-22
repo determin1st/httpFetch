@@ -43,7 +43,7 @@ var test = async function() {
     btn[1].addEventListener('click', sleep(11));
     btn[2].disabled = true;
     btn[2].addEventListener('click', async function(e) {
-        // cancel running fetch request
+        // cancel request
         if (promise && promise.pending) {
             promise.cancel();// or promise.abort()
         }

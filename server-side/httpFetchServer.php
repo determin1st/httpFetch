@@ -253,7 +253,7 @@ class HttpFetch {
     header('access-control-allow-origin: '.$a);
     header('access-control-allow-credentials: true');
     header('access-control-allow-headers: *, content-type, content-encoding, etag');
-    header('access-control-expose-headers: *, content-encoding');
+    header('access-control-expose-headers: *, content-encoding, location');
     # consider JSON output by default
     $json = null;
     # for encrypted response,
@@ -416,7 +416,22 @@ class HttpFetch {
         {
           $path[2] = $a - 1;
           header('location: '.self::$options['baseUrl'].implode('/', $path));
-          http_response_code(303);
+          http_response_code(307);
+        }
+        else
+        {
+          header('content-type: text/plain');
+          echo 'redirect complete';
+        }
+        break;
+        # }}}
+      case 'redirect-300':
+        # {{{
+        if (($a = intval($path[2])) > 0)
+        {
+          $path[2] = $a - 1;
+          header('location: '.self::$options['baseUrl'].implode('/', $path));
+          http_response_code(300);
         }
         else
         {
@@ -468,9 +483,9 @@ class HttpFetch {
             if (($a = fopen($file, 'r')) === false) {
               throw new Exception('failed to open: '.$file);
             }
-            $n = 1 + round($size / 10, 0);
+            $n = 1 + round($size / 20, 0);
             $i = -1;
-            while (++$i < 10)
+            while (++$i < 20)
             {
               # read
               if (($b = fread($a, $n)) === false) {
@@ -479,7 +494,7 @@ class HttpFetch {
               # output
               echo $b; flush();
               # delay
-              usleep(500000);# 0.5s
+              usleep(100000);# 0.1s
             }
           }
           break;

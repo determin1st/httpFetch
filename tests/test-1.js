@@ -95,7 +95,7 @@ var test = async function() {
                 url: '/tests/echo',
                 method: 'GET',
                 data: 'GOT with BODY!'
-            }).then(assert(' > GET with BODY: ', true));
+            }).then(assert(' > GET with BODY: ', false));
             await soFetch({
                 url: '/tests/echo',
                 method: 'POST'
@@ -128,10 +128,20 @@ var test = async function() {
                 timeout: 0
             }).then(assert(' > auto redirected: ', true));
             await soFetch({
-                url: '/tests/redirect/6',
+                url: '/tests/redirect/5',
                 timeout: 0,
                 redirect: 'manual'
             }).then(assert(' > manual redirect: ', true));
+            await soFetch({
+                url: '/tests/redirect-300/6',
+                timeout: 0,
+                redirect: 'manual'
+            }).then(assert(' > manual redirect 300: ', false));
+            await soFetch({
+                url: '/tests/redirect-300/5',
+                timeout: 0,
+                redirect: 'manual'
+            }).then(assert(' > manually redirected 300: ', true));
             // unlock
             console.log('END:'+this.innerText);
             this.disabled = false;
