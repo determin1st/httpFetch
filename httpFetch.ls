@@ -765,13 +765,17 @@ httpFetch = do ->
 					chunk := new StreamChunk chunkSize
 				# check buffered
 				if buffer
-					if chunk
-						# assemble the chunk
+					# determine amount
+					if not (c = buffer.data.byteLength - buffer.dose)
+						# dispose
+						buffer := null
+						# proceed to normal reading..
+					else if chunk
+						# chunk assembly
 						# prepare
 						a = chunk.dose
 						b = chunk.data.byteLength - chunk.dose
-						c = buffer.data.byteLength - buffer.dose
-						# check buffer state
+						# check the inflation
 						if c >= b
 							# active buffer
 							# get dose
@@ -780,13 +784,13 @@ httpFetch = do ->
 							buffer.dose = b
 							# inject
 							chunk.data.set c, a
-							# complete
+							# complete chunk
 							return locked := if pause
 								then pause.then readBufComplete
 								else nullResolved.then readBufComplete
 						else
 							# exhausted buffer
-							# get the remains
+							# get what remains
 							b = buffer.dose + c
 							c = buffer.data.subarray buffer.dose, b
 							# inject
@@ -799,19 +803,17 @@ httpFetch = do ->
 								then pause.then readStart
 								else readStart!
 					else
-						# TODO: test
-						# eject buffer remains
+						# no chunk but buffer remains!
+						# eject the remains
 						# into temporary chunk
-						debugger
-						c = buffer.data.slice 0, buffer.dose
-						chunk := newStreamBuffer c, 0
+						chunk := newStreamBuffer (buffer.data.slice buffer.dose), 0
 						# dispose
 						buffer := null
 						# complete
 						return locked := if pause
 							then pause.then readBufComplete
 							else nullResolved.then readBufComplete
-				# lock and start reading
+				# start reading
 				return locked := if pause
 					then pause.then readStart
 					else readStart!

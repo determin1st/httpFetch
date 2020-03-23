@@ -65,7 +65,7 @@ var test = async function() {
     });
     btn[2].addEventListener('click', async function(e) {
         // chunks {{{
-        var chunk;
+        var chunk,a;
         if (!this.disabled)
         {
             // prepare
@@ -83,7 +83,7 @@ var test = async function() {
                 // prepare
                 showImage();
                 // read stream in exact chunks
-                while (chunk = await stream.read(500))
+                while (chunk = await stream.read(512))
                 {
                     showProgress(chunk);
                     updateImage(chunk);

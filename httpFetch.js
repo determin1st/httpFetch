@@ -668,7 +668,7 @@ httpFetch = function(){
       this.response = res = data.response;
       this.size = size = res.headers['content-length'] ? parseInt(res.headers['content-length']) : 0;
       this.read = function(chunkSize){
-        var a, b, c;
+        var c, a, b;
         if (!stream) {
           return nullResolved;
         }
@@ -680,10 +680,11 @@ httpFetch = function(){
           chunk = new StreamChunk(chunkSize);
         }
         if (buffer) {
-          if (chunk) {
+          if (!(c = buffer.data.byteLength - buffer.dose)) {
+            buffer = null;
+          } else if (chunk) {
             a = chunk.dose;
             b = chunk.data.byteLength - chunk.dose;
-            c = buffer.data.byteLength - buffer.dose;
             if (c >= b) {
               b = buffer.dose + b;
               c = buffer.data.subarray(buffer.dose, b);
@@ -703,9 +704,7 @@ httpFetch = function(){
                 : readStart();
             }
           } else {
-            debugger;
-            c = buffer.data.slice(0, buffer.dose);
-            chunk = newStreamBuffer(c, 0);
+            chunk = newStreamBuffer(buffer.data.slice(buffer.dose), 0);
             buffer = null;
             return locked = pause
               ? pause.then(readBufComplete)
