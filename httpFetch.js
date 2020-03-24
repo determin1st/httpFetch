@@ -2,9 +2,9 @@
 'use strict';
 var httpFetch, toString$ = {}.toString;
 httpFetch = function(){
-  var api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, isFormData, FetchConfig, FetchOptions, FetchError, FetchData, FetchStream, FetchHandler, Api, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
-  api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder, typeof ReadableStream];
-  if (api.includes('undefined')) {
+  var Api, jsonDecode, jsonEncode, textDecode, textEncode, apiCrypto, parseArguments, isFormData, FetchConfig, FetchOptions, FetchError, FetchData, FetchStream, FetchHandler, ApiHandler, newFormData, newQueryString, newPromise, newInstance;
+  Api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder, typeof ReadableStream];
+  if (Api.includes('undefined')) {
     console.log('httpFetch: missing requirements');
     return null;
   }

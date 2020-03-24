@@ -2,7 +2,7 @@
 httpFetch = do ->
 	# check requirements
 	# {{{
-	api = [
+	Api = [
 		typeof fetch
 		typeof AbortController
 		typeof Proxy
@@ -11,7 +11,7 @@ httpFetch = do ->
 		typeof TextDecoder
 		typeof ReadableStream
 	]
-	if api.includes 'undefined'
+	if Api.includes 'undefined'
 		console.log 'httpFetch: missing requirements'
 		return null
 	# }}}
