@@ -1,8 +1,40 @@
 # httpFetch
 *Individual [fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
-wrapper for the browser
+wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 ([experimental](https://developer.mozilla.org/en-US/docs/MDN/Contribute/Guidelines/Conventions_definitions#Experimental),
 [reactionary](https://en.wikipedia.org/wiki/Reactionary))*
+<details>
+<summary>overview</summary>
+
+The thing, is pretty fast as it doesnt try to connect worlds,
+but rather lives in it's own native environment (the browser).
+So it will catch up with you faster than you may think.
+
+HTTP request and response routine is super boring
+but standard procedure for all kinds of stuff.
+
+For the UI and interactions, the browser's api is used,
+so it's almost the same thing you do at the server side.
+
+While some folks having trouble with so called "native" apis,
+the best of us are using wrappers (self-made or libs - doesnt matter).
+
+This thing, is kind of a wrapper,
+but packed with extra options and routes
+which may or may not happen with you
+during the HTTP request/response exchange.
+
+It's more advanced that any other tool (which try to keep pace with the NODE's world)
+as it uses (currently) experimental features of the browser (like fetch, streams, encryption).
+It may be more aggressive at your environment -
+only modern syntax, only modern apis (the approach may be same).
+As far as this time point vanishes in the past,
+the previous statement becomes falsy.
+
+So, the attempt of escaping the doom is futile:
+face it one-to-one with the Spider Mastermind.
+
+</details>
 [![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/tests/logo.jpg)](http://www.nathanandersonart.com/)
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
@@ -14,13 +46,17 @@ wrapper for the browser
 - [**Retry**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-4.html): restart anything
 - [**Download**](http://raw.githack.com/determin1st/httpFetch/master/tests/test-5.html): download anything
 - **Upload**: upload anything
+- **Streams**: stream something
 - **Mix**: mix everything
 
 
 ## Try
 inject into HTML:
 ```html
+# from CDN (stable):
 <script src="https://cdn.jsdelivr.net/npm/http-fetch-json@2/httpFetch.js"></script>
+# from GIT (lastest)
+<script src="http://raw.githack.com/determin1st/httpFetch/master/httpFetch.js"></script>
 ```
 get the code:
 ```bash
@@ -75,7 +111,7 @@ npm i http-fetch-json
   | **`fullHouse`**     | [boolean][4] | `false` | to include everything, request and response, data and headers |
   | **`promiseReject`** | [boolean][4] | `false` | promise will reject with [Error][5] |
   | **`timeout`**       | [integer][6] | `20`    | request will abort in the given [delay in seconds][112] |
-  | **`redirectCount`** | [integer][6] | `5`     | manual redirects limit (**non-functional**) |
+  | **`redirectCount`** | [integer][6] | `5`     | manual redirects limit (functional **only** with http status **300**) |
   | **`aborter`**       | [aborter][8] |         | to cancel request with given controller |
   | **`headers`**       | [object][3]  | `{..}`  | [request headers][114] |
   | **`parseResponse`** | [string][2]  | `data`  | `data` is to parse all the content to proper [content type][113], `stream` for **`FetchStream`**, otherwise, raw [response][7] |

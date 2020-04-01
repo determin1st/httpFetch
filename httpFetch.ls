@@ -1,6 +1,10 @@
-'use strict'
+"use strict"
 httpFetch = do ->
 	# check requirements
+	consoleError = (msg) !-> # {{{
+		a = '%chttpFetch: %c'+msg
+		console.log a, 'font-weight:bold;color:gold', 'color:orangered;font-size:140%'
+	# }}}
 	# {{{
 	Api = [
 		typeof fetch
@@ -12,7 +16,7 @@ httpFetch = do ->
 		typeof ReadableStream
 	]
 	if Api.includes 'undefined'
-		console.log 'httpFetch: missing requirements'
+		consoleError 'missing requirements'
 		return null
 	# }}}
 	# helpers
@@ -46,7 +50,7 @@ httpFetch = do ->
 	apiCrypto = do -> # {{{
 		# check requirements
 		if (typeof crypto == 'undefined') or not crypto.subtle
-			console.log 'httpFetch: Web Crypto API is not available'
+			consoleError 'Web Crypto API is not available'
 			return null
 		# helpers
 		CS = crypto.subtle
@@ -440,6 +444,11 @@ httpFetch = do ->
 			'promiseReject'
 		]
 		setOptions: (o) !->
+			# set aliases
+			# in case of user mistyped config option
+			# they should go first to be lower priority (may be overwritten)
+			if o.hasOwnProperty 'baseURL'
+				@baseUrl = o.baseURL
 			# set native
 			for a in @fetchOptions when o.hasOwnProperty a
 				@[a] = o[a]
@@ -1337,7 +1346,7 @@ httpFetch = do ->
 				return true
 			# check unique
 			if apiCrypto.secretManagersPool.has storeManager
-				console.log 'httpFetch: secret manager must be unique'
+				consoleError 'secret manager must be unique'
 				return false
 			# lock
 			handshakeLocked := true
@@ -1419,9 +1428,12 @@ httpFetch = do ->
 		# }}}
 	# }}}
 	ApiHandler = (handler) !-> # {{{
-		@get = (f, key) -> # {{{
+		@get = (f, k, p) -> # {{{
 			# check property
-			switch key
+			switch k
+			case 'isGlobal'
+				# only first instance is global
+				return (p == httpFetch)
 			case 'secret'
 				return if a = handler.config.secret
 					then a.get!
@@ -1431,29 +1443,29 @@ httpFetch = do ->
 				# to make *instanceof* syntax working
 				return FetchHandler.prototype
 			default
-				if handler.config.hasOwnProperty key
-					return handler.config[key]
+				if handler.config.hasOwnProperty k
+					return handler.config[k]
 			# check method/interface
-			if handler.api[key]
-				return handler.api[key]
+			if handler.api[k]
+				return handler.api[k]
 			# nothing
 			return null
 		# }}}
-		@set = (f, key, val) -> # {{{
+		@set = (f, k, v) -> # {{{
 			# set property
 			cfg = handler.config
-			if cfg.hasOwnProperty key
-				if key == 'baseUrl'
+			if cfg.hasOwnProperty k
+				if k == 'baseUrl'
 					# string
-					if typeof val == 'string'
-						cfg[key] = val
-				else if (cfg.flagOptions.indexOf key) != -1
+					if typeof v == 'string'
+						cfg[k] = v
+				else if (cfg.flagOptions.indexOf k) != -1
 					# boolean
-					cfg[key] = !!val
+					cfg[k] = !!v
 				else if 'timeout'
 					# positive integer
-					if (val = parseInt val) >= 0
-						cfg[key] = val
+					if (v = parseInt v) >= 0
+						cfg[k] = v
 			# done
 			return true
 		# }}}
@@ -1578,10 +1590,8 @@ httpFetch = do ->
 		# create custom instance
 		return new Proxy a.fetch, b
 	# }}}
-	# create global instance
-	return (newInstance null) null
+	# create global instance and
+	# keep it in its own scope
+	return httpFetch = (newInstance null) null
 ###
-if httpFetch and typeof module != 'undefined'
-	module.exports = httpFetch
-
 # vim: ts=2 sw=2 sts=2 fdm=marker:
