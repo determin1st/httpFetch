@@ -6,33 +6,27 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 <details>
   <summary>overview</summary>
 
-  The thing, is pretty fast as it doesnt try to connect worlds,
+  The thing is pretty fast as it doesnt try to connect worlds,
   but rather lives in it's own native environment (the browser).
   So it will catch up with you faster than you may think.
 
   HTTP request and response routine is super boring
   but standard procedure for all kinds of stuff.
 
-  For the UI and interactions, the browser's api is used,
-  so it's almost the same thing you do at the server side.
+  While some folks having troubles with so called "native" apis,
+  the best of us are using wrappers (self-made or other's libs - doesnt matter).
 
-  While some folks having trouble with so called "native" apis,
-  the best of us are using wrappers (self-made or libs - doesnt matter).
+  The thing is a kind of a wrapper, but armed with extra options and routes
+  which may or may not happen with you during the HTTP request/response battle.
 
-  This thing, is kind of a wrapper,
-  but packed with extra options and routes
-  which may or may not happen with you
-  during the HTTP request/response exchange.
+  It's more advanced that any other tool which try to keep pace with the NODE's world
+  because it uses (currently) experimental features of the browser.
+  But it may be more aggressive in your environment -
+  only modern syntax, only modern apis (but not the approach).
+  As far as time flows, the previous statement becomes falsy.
 
-  It's more advanced that any other tool (which try to keep pace with the NODE's world)
-  as it uses (currently) experimental features of the browser (like fetch, streams, encryption).
-  It may be more aggressive at your environment -
-  only modern syntax, only modern apis (the approach may be same).
-  As far as this time point vanishes in the past,
-  the previous statement becomes falsy.
-
-  So, the attempt of escaping the doom is futile:
-  face it one-to-one with the Spider Mastermind.
+  So, the attempt of escaping your doom is futile:
+  Face it one-to-one with the **Spider Mastermind**!
 </details>
 
 [![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/tests/logo.jpg)](http://www.nathanandersonart.com/)
@@ -189,7 +183,7 @@ npm i http-fetch-json
   ```
 </details>
 
-##### Optimistic, when `notNull`
+##### Optimistic, when `notNull` (recommended)
 <details>
   <summary>custom instance</summary>
 
