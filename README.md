@@ -62,14 +62,14 @@ npm i http-fetch-json
 
 
 ## Syntax
-### `httpFetch(options[, callback(ok, res)])`
-### `httpFetch(url[, data[, callback(ok, res)]])`
-### `httpFetch(url[, callback(ok, res)])`
+### `httpFetch(options [, callback])`
+### `httpFetch(url, data [, callback])`
+### `httpFetch(url [, callback])`
 #### Parameters
-- **`options`** - [object][3] with:
+- **`options`** - an [object][3] with:
   ---
   <details>
-  <summary>basic</summary>
+  <summary>base</summary>
 
   | name       | type        | default | description |
   | :---       | :---:       | :---:   | :---        |
@@ -112,10 +112,10 @@ npm i http-fetch-json
   </details>
 
   ---
-- **`callback`** - optional result handler [function][9]
+- **`callback(ok, res)`** - optional [result handler function](https://developer.mozilla.org/en-US/docs/Glossary/Callback_function)
   ---
-  - **`ok`** - [boolean][4] flag, indicates the successful result
-  - **`res`** - response result, either [success][1] or [FetchError][5]
+  - **`ok`** - [boolean][4] flag, indicates the result type
+  - **`res`** - response result [data][1] or [FetchError][5]
 #### Returns
 [`Promise`][10] (no callback) or [`AbortController`][8] (callback)
 
