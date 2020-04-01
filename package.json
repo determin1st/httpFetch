@@ -20,10 +20,11 @@
     "retry",
     "upload",
     "download",
+    "ReadableStream",
     "FormData",
     "crypto",
     "loader"
   ],
   "main": "httpFetch.js",
-  "version": "2.0.1"
+  "version": "2.0.3"
 }

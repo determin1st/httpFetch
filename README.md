@@ -4,37 +4,37 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 ([experimental](https://developer.mozilla.org/en-US/docs/MDN/Contribute/Guidelines/Conventions_definitions#Experimental),
 [reactionary](https://en.wikipedia.org/wiki/Reactionary))*
 <details>
-<summary>overview</summary>
+  <summary>overview</summary>
 
-The thing, is pretty fast as it doesnt try to connect worlds,
-but rather lives in it's own native environment (the browser).
-So it will catch up with you faster than you may think.
+  The thing, is pretty fast as it doesnt try to connect worlds,
+  but rather lives in it's own native environment (the browser).
+  So it will catch up with you faster than you may think.
 
-HTTP request and response routine is super boring
-but standard procedure for all kinds of stuff.
+  HTTP request and response routine is super boring
+  but standard procedure for all kinds of stuff.
 
-For the UI and interactions, the browser's api is used,
-so it's almost the same thing you do at the server side.
+  For the UI and interactions, the browser's api is used,
+  so it's almost the same thing you do at the server side.
 
-While some folks having trouble with so called "native" apis,
-the best of us are using wrappers (self-made or libs - doesnt matter).
+  While some folks having trouble with so called "native" apis,
+  the best of us are using wrappers (self-made or libs - doesnt matter).
 
-This thing, is kind of a wrapper,
-but packed with extra options and routes
-which may or may not happen with you
-during the HTTP request/response exchange.
+  This thing, is kind of a wrapper,
+  but packed with extra options and routes
+  which may or may not happen with you
+  during the HTTP request/response exchange.
 
-It's more advanced that any other tool (which try to keep pace with the NODE's world)
-as it uses (currently) experimental features of the browser (like fetch, streams, encryption).
-It may be more aggressive at your environment -
-only modern syntax, only modern apis (the approach may be same).
-As far as this time point vanishes in the past,
-the previous statement becomes falsy.
+  It's more advanced that any other tool (which try to keep pace with the NODE's world)
+  as it uses (currently) experimental features of the browser (like fetch, streams, encryption).
+  It may be more aggressive at your environment -
+  only modern syntax, only modern apis (the approach may be same).
+  As far as this time point vanishes in the past,
+  the previous statement becomes falsy.
 
-So, the attempt of escaping the doom is futile:
-face it one-to-one with the Spider Mastermind.
-
+  So, the attempt of escaping the doom is futile:
+  face it one-to-one with the Spider Mastermind.
 </details>
+
 [![Spider Mastermind](https://raw.githack.com/determin1st/httpFetch/master/tests/logo.jpg)](http://www.nathanandersonart.com/)
 [![](https://data.jsdelivr.com/v1/package/npm/http-fetch-json/badge)](https://www.jsdelivr.com/package/npm/http-fetch-json)
 
