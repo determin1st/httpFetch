@@ -45,20 +45,31 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 
 
 ## Try
-inject into HTML:
-```html
-# from CDN (stable):
-<script src="https://cdn.jsdelivr.net/npm/http-fetch-json@2/httpFetch.js"></script>
-# from GIT (lastest)
-<script src="http://raw.githack.com/determin1st/httpFetch/master/httpFetch.js"></script>
-```
-get the code:
-```bash
-# with GIT (lastest)
-git clone https://github.com/determin1st/httpFetch
-# with NPM (stable)
-npm i http-fetch-json
-```
+<details>
+<summary>HTML inject</summary>
+
+  ```html
+  # CDN (stable):
+  <script src="https://cdn.jsdelivr.net/npm/http-fetch-json@2/httpFetch.js"></script>
+  # GIT (lastest)
+  <script src="http://raw.githack.com/determin1st/httpFetch/master/httpFetch.js"></script>
+  ```
+</details>
+<details>
+<summary>ES6 module</summary>
+
+  ```javascript
+  // TODO
+  ```
+</details>
+<details>
+<summary>get the code</summary>
+
+  #### GIT (lastest): `git clone https://github.com/determin1st/httpFetch`
+  #### NPM (stable): `npm i http-fetch-json`
+</details>
+
+
 
 
 ## Syntax
@@ -120,7 +131,7 @@ npm i http-fetch-json
 [`Promise`][10] (no callback) or [`AbortController`][8] (callback)
 
 
-## Result
+## Result handling
 ##### Optimistic style (the default)
 <details>
   <summary>async/await</summary>
