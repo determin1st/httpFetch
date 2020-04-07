@@ -8,7 +8,7 @@ httpFetch = function(){
     a = '%chttpFetch: %c' + msg;
     console.log(a, 'font-weight:bold;color:gold', 'color:orangered;font-size:140%');
   };
-  Api = [typeof fetch, typeof AbortController, typeof Proxy, typeof Promise, typeof WeakMap, typeof TextDecoder, typeof ReadableStream];
+  Api = [typeof fetch, typeof AbortController, typeof TextDecoder, typeof Proxy, typeof Promise, typeof WeakMap, typeof ReadableStream];
   if (Api.includes('undefined')) {
     consoleError('missing requirements');
     return null;

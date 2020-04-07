@@ -46,12 +46,13 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 
 ## Try
 <details>
-<summary>HTML inject</summary>
+<summary>ES5 script (classic)</summary>
 
   ```html
-  # CDN (stable):
+  <!-- CDN (stable) -->
   <script src="https://cdn.jsdelivr.net/npm/http-fetch-json@2/httpFetch.js"></script>
-  # GIT (lastest)
+
+  <!-- GIT (lastest) -->
   <script src="http://raw.githack.com/determin1st/httpFetch/master/httpFetch.js"></script>
   ```
 </details>
@@ -65,8 +66,13 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 <details>
 <summary>get the code</summary>
 
-  #### GIT (lastest): `git clone https://github.com/determin1st/httpFetch`
-  #### NPM (stable): `npm i http-fetch-json`
+  ```bash
+  # GIT (lastest)
+  git clone https://github.com/determin1st/httpFetch
+
+  # NPM (stable)
+  npm i http-fetch-json
+  ```
 </details>
 
 
@@ -529,8 +535,37 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 
 ## KISS API
 <details>
-  <summary>Use POST method (Keep It Simple Stupid)</summary>
+  <summary>overview</summary>
 
+  What exactly **is** the [REST API](https://en.wikipedia.org/wiki/Representational_state_transfer)?
+  In a nutshell, it's only a collection of [endpoints](https://stackoverflow.com/questions/2122604/what-is-an-endpoint#47573997):
+  > Endpoints are important aspects of interacting with server-side web APIs, as they specify where resources lie that can be accessed by third party software. Usually the access is via a URI to which HTTP requests are posted, and from which the response is thus expected.
+
+  The [original definition](https://www.ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm)
+  of the REST **does not** restrict or explicitly specify
+  certain [HTTP methods][101] to use with, there is no [CRUD](https://ru.wikipedia.org/wiki/CRUD)
+  in there. Check the link and try to find it, if you doubt.
+
+  Still, some dumb dumbies are unable to differentiate the origin and
+  the mutatated forms of the term, but thats not the reason why **KISS** word is used.
+
+  The **KISS** (**K**eep **I**t **S**imple **S**tupid) is how the **REST** is implemented.
+
+  What is [AJAX](https://en.wikipedia.org/wiki/Ajax_(programming)) then?
+  Well, thats also an implementation of the REST (or a subset).
+  It is bound to the **JavaScript**, **XML** and [XMLHttpRequest](https://en.wikipedia.org/wiki/XMLHttpRequest).
+  Generally, you say that **jQuery**, **axios**, **superagent** or
+  other lib is **AJAX** if it utilizes **XMLHttpRequest** api.
+  ...
+
+  What about [RPC](https://en.wikipedia.org/wiki/Remote_procedure_call)?
+  ...
+
+</details>
+<details>
+  <summary>how</summary>
+
+  #### use **POST** method
   ```javascript
   // instead of GET method, you may POST:
   res = await httpFetch(url, {});       // EMPTY OBJECT

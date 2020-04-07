@@ -9,10 +9,10 @@ httpFetch = do ->
 	Api = [
 		typeof fetch
 		typeof AbortController
+		typeof TextDecoder
 		typeof Proxy
 		typeof Promise
 		typeof WeakMap
-		typeof TextDecoder
 		typeof ReadableStream
 	]
 	if Api.includes 'undefined'
