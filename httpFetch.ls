@@ -326,7 +326,7 @@ httpFetch = do ->
 	parseArguments = (a) -> # {{{
 		# check count
 		if not a.length
-			return new FetchError 3, 'no parameters specified'
+			return new FetchError 3, 'no arguments'
 		# check what syntax is used
 		switch typeof! a.0
 		case 'String'
@@ -400,6 +400,7 @@ httpFetch = do ->
 	# constructors
 	FetchConfig = !-> # {{{
 		@baseUrl        = ''
+		@mounted        = false
 		###
 		@mode           = null
 		@credentials    = null
@@ -449,6 +450,9 @@ httpFetch = do ->
 			# they should go first to be lower priority (may be overwritten)
 			if o.hasOwnProperty 'baseURL'
 				@baseUrl = o.baseURL
+			# set unique
+			if o.hasOwnProperty 'mounted'
+				@mounted = !!o.mounted
 			# set native
 			for a in @fetchOptions when o.hasOwnProperty a
 				@[a] = o[a]
@@ -878,24 +882,39 @@ httpFetch = do ->
 			d = new FetchData config
 			o = new FetchOptions!
 			# parse arguments
-			if (e = parseArguments arguments) instanceof Error
-				# set dummy options
-				options = {}
+			if config.mounted
+				# mounted instance:
+				# - no options
+				# - result is handled with promise
+				# - input parameter is data
+				options   = {}
+				d.promise = newPromise d
+				if arguments.length
+					options.data = data = arguments.0
+				###
+			else if (e = parseArguments arguments) instanceof Error
+				# incorrect input:
+				# - dummy options
+				# - error is handled with promise
+				# - no data
+				options   = {}
+				d.promise = newPromise d
 			else
-				# set options
+				# standard input
+				# custom options
 				options = e.0
-				# select result handling mode
+				# custom result handling mode
 				if e.1
 					d.callback = e.1
 				else
 					d.promise = newPromise d
+				# custom data
+				if options.hasOwnProperty 'data'
+					data = options.data
 				# no error
 				e = false
-			# get request
+			# create request shorthand variable
 			r = d.response.request
-			# get data
-			if options.hasOwnProperty 'data'
-				data = options.data
 			# }}}
 			# INITIALIZE
 			# set request control options {{{
@@ -1011,9 +1030,8 @@ httpFetch = do ->
 				# remove content-type header
 				delete o.headers['content-type']
 			# }}}
-			# check {{{
+			# check for instant FetchError {{{
 			if e
-				# instant FetchError
 				# fail fast, but not faster
 				if d.callback
 					d.callback false, e
@@ -1578,17 +1596,22 @@ httpFetch = do ->
 		# done
 		return p
 	# }}}
-	newInstance = (baseConfig) -> (userConfig) -> # {{{
-		# create new configuration
-		config = new FetchConfig!
-		# initialize it
-		config.setOptions baseConfig if baseConfig
-		config.setOptions userConfig if userConfig
-		# create handlers
-		a = new FetchHandler config
-		b = new ApiHandler a
-		# create custom instance
-		return new Proxy a.fetch, b
+	newInstance = (baseConfig) -> # {{{
+		# mounted instances do not spawn children
+		if baseConfig and baseConfig.mounted
+			return null
+		# create factory
+		return (userConfig) ->
+			# create new configuration
+			config = new FetchConfig!
+			# initialize it
+			config.setOptions baseConfig if baseConfig
+			config.setOptions userConfig if userConfig
+			# create handlers
+			a = new FetchHandler config
+			b = new ApiHandler a
+			# create custom instance
+			return new Proxy a.fetch, b
 	# }}}
 	# create global instance and
 	# keep it in its own scope

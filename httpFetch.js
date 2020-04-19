@@ -294,7 +294,7 @@ httpFetch = function(){
   }();
   parseArguments = function(a){
     if (!a.length) {
-      return new FetchError(3, 'no parameters specified');
+      return new FetchError(3, 'no arguments');
     }
     switch (toString$.call(a[0]).slice(8, -1)) {
     case 'String':
@@ -372,6 +372,7 @@ httpFetch = function(){
   };
   FetchConfig = function(){
     this.baseUrl = '';
+    this.mounted = false;
     this.mode = null;
     this.credentials = null;
     this.cache = null;
@@ -398,6 +399,9 @@ httpFetch = function(){
       var i$, ref$, len$, a;
       if (o.hasOwnProperty('baseURL')) {
         this.baseUrl = o.baseURL;
+      }
+      if (o.hasOwnProperty('mounted')) {
+        this.mounted = !!o.mounted;
       }
       for (i$ = 0, len$ = (ref$ = this.fetchOptions).length; i$ < len$; ++i$) {
         a = ref$[i$];
@@ -764,11 +768,18 @@ httpFetch = function(){
     this.api = new Api(this);
     this.store = new Map();
     this.fetch = function(){
-      var d, o, e, options, r, data, a, i$, ref$, len$, b, c;
+      var d, o, options, data, e, r, a, i$, ref$, len$, b, c;
       d = new FetchData(config);
       o = new FetchOptions();
-      if ((e = parseArguments(arguments)) instanceof Error) {
+      if (config.mounted) {
         options = {};
+        d.promise = newPromise(d);
+        if (arguments.length) {
+          options.data = data = arguments[0];
+        }
+      } else if ((e = parseArguments(arguments)) instanceof Error) {
+        options = {};
+        d.promise = newPromise(d);
       } else {
         options = e[0];
         if (e[1]) {
@@ -776,12 +787,12 @@ httpFetch = function(){
         } else {
           d.promise = newPromise(d);
         }
+        if (options.hasOwnProperty('data')) {
+          data = options.data;
+        }
         e = false;
       }
       r = d.response.request;
-      if (options.hasOwnProperty('data')) {
-        data = options.data;
-      }
       r.setUrl(config.baseUrl, options.url);
       if (options.hasOwnProperty('timeout') && (a = options.timeout) >= 0) {
         d.timeout = 1000 * a;
@@ -1390,6 +1401,9 @@ httpFetch = function(){
     return p;
   };
   newInstance = function(baseConfig){
+    if (baseConfig && baseConfig.mounted) {
+      return null;
+    }
     return function(userConfig){
       var config, a, b;
       config = new FetchConfig();

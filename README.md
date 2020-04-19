@@ -451,7 +451,17 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
 
   ### `httpFetch.create(config)`
   #### Parameters
-  - **`config`** - [object][3] with options
+  - **`config`** - an [object][3] with instance options
+  ---
+  <details>
+  <summary>base</summary>
+
+  | name          | type          | default | description |
+  | :---          | :---:         | :---:   | :---        |
+  | **`baseUrl`** | [string][2]   | ``      | |
+  | **`mounted`** | [boolean][4]  | `false` | |
+  </details>
+
   #### Description
   Creates a new [instance of][116] of [`httpFetch`][0]
   #### Examples
