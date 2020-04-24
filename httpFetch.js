@@ -639,7 +639,9 @@ httpFetch = function(){
               chunk = null;
             }
           } else {
-            d = chunk.data.slice(0, a);
+            if (a) {
+              d = chunk.data.slice(0, a);
+            }
             chunk = null;
             this$.cancel();
           }
@@ -758,6 +760,39 @@ httpFetch = function(){
           pause.resolve();
         }
         return true;
+      };
+      this.readInt = async function(){
+        var a;
+        if (!(a = (await this$.read(4)))) {
+          return null;
+        }
+        if (a.byteLength !== 4) {
+          return null;
+        }
+        return a[0] << 24 | a[1] << 16 | a[2] << 8 | a[3];
+      };
+      this.readString = async function(){
+        var a;
+        if ((a = (await this$.readInt())) === null) {
+          return null;
+        }
+        if ((a = (await this$.read(a))) === null) {
+          return null;
+        }
+        return textDecode(a);
+      };
+      this.readJSON = async function(){
+        var a, e;
+        if ((a = (await this$.readString())) === null) {
+          return null;
+        }
+        try {
+          a = JSON.parse(a);
+        } catch (e$) {
+          e = e$;
+          a = null;
+        }
+        return a;
       };
     };
     return FetchStream;

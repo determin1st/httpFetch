@@ -611,9 +611,10 @@ httpFetch = do ->
 			return a
 		# }}}
 		###
-		# ReadableStream wrapper
 		FetchStream = (stream, data, sec) !->
-			# initialize private variables
+			# ReadableStream wrapper
+			# initialize private vars
+			# {{{
 			reader = stream.getReader! #getReader {mode: 'byob'}
 			res    = data.response
 			pause  = false
@@ -624,6 +625,7 @@ httpFetch = do ->
 			size   = if res.headers['content-length']
 				then parseInt res.headers['content-length']
 				else 0
+			# }}}
 			# create helpers
 			readStart = ~> # {{{
 				# reset pause
@@ -712,9 +714,9 @@ httpFetch = do ->
 							# proceed to completion..
 					else
 						# no more dosage
-						# extract remains and
+						# extract remains
+						d = chunk.data.slice 0, a if a
 						# dispose the envelope
-						d = chunk.data.slice 0, a
 						chunk := null
 						# finish up
 						@cancel!
@@ -866,6 +868,42 @@ httpFetch = do ->
 				pause.resolve! if pause
 				# done
 				return true
+			# }}}
+			# shorthands
+			@readInt = ~>> # {{{
+				# read 4 bytes
+				if not a = await @read 4
+					return null
+				# check
+				if a.byteLength != 4
+					return null
+				# convert big-endian sequence to integer
+				return a.0 .<<. 24 .|. \
+				       a.1 .<<. 16 .|. \
+				       a.2 .<<.  8 .|. \
+				       a.3
+			# }}}
+			@readString = ~>> # {{{
+				# read size of the string
+				if (a = await @readInt!) == null
+					return null
+				# read bytes
+				if (a = await @read a) == null
+					return null
+				# decode as utf8
+				return textDecode a
+			# }}}
+			@readJSON = ~>> # {{{
+				# read string
+				if (a = await @readString!) == null
+					return null
+				# parse
+				try
+					a = JSON.parse a
+				catch
+					a = null
+				# complete
+				return a
 			# }}}
 		###
 		return FetchStream
