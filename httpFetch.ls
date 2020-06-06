@@ -1116,15 +1116,15 @@ httpFetch = do ->
 			# prepare
 			res = data.response
 			sec = config.secret if data.parseResponse == 'data'
-			# set timer
+			# activate timer
 			if data.timeout
 				data.timer = setTimeout data.timerFunc, data.timeout
 			# create handler routines
 			responseHandler = (r) ~> # {{{
 				# initialize the response
 				res.time    = performance.now!
-				res.type    = r.type
 				res.status  = r.status
+				res.type    = r.type
 				res.headers = h = {}
 				# terminate timeout timer
 				if data.timer
@@ -1155,6 +1155,7 @@ httpFetch = do ->
 						throw null
 						#throw new FetchError 3, 'not implemented yet'
 					# fail
+					# TODO: parse body as text if possible
 					throw new FetchError 0, 'unsuccessful response status'
 				# check HTTP status 200
 				if r.status != 200 and data.status200
@@ -1165,10 +1166,10 @@ httpFetch = do ->
 				# check parsing mode
 				switch data.parseResponse
 				case 'stream'
-					# multiple chunks of data
+					# chunks of data
 					return new FetchStream r.body, data, sec
 				case 'data'
-					# single chunk of data
+					# single chunk
 					# encrypted request means encrypted response,
 					# so the content is always handled as binary
 					if sec
@@ -1177,7 +1178,7 @@ httpFetch = do ->
 					b = h['content-type'] or ''
 					if a = options.headers.accept
 						# prefer own setting and
-						# loose match it against server
+						# do a loose match against server's
 						if b and (b.indexOf a) != 0
 							throw new FetchError 1, 'incorrect content-type header'
 					else
@@ -1191,7 +1192,8 @@ httpFetch = do ->
 						#   will throw error at no-cors opaque mode (who needs that?)
 						# - the UTF-8 BOM, must not be added, but if present,
 						#   will be stripped by .text
-						return r.text!then jsonDecode
+						return r.text!
+							.then jsonDecode
 					case a.indexOf 'application/octet-stream'
 						# binary
 						return r.arrayBuffer!
@@ -1209,7 +1211,7 @@ httpFetch = do ->
 					default
 						# assume binary
 						return r.arrayBuffer!
-				# do not parse the response
+				# as is, dont parse
 				return r
 			# }}}
 			sec and decryptHandler = (buf) -> # {{{
@@ -1258,11 +1260,13 @@ httpFetch = do ->
 				fetch res.request.url, options
 					.then responseHandler
 					.then decryptHandler
-					.then successHandler, errorHandler
+					.then successHandler
+					.catch errorHandler
 			else
 				fetch res.request.url, options
 					.then responseHandler
-					.then successHandler, errorHandler
+					.then successHandler
+					.catch errorHandler
 			# store
 			@store.set data, options
 		# }}}
@@ -1303,22 +1307,22 @@ httpFetch = do ->
 			@store.delete data
 		# }}}
 		fail: (data, error) !-> # {{{
-			# internal retry (redirect)
+			# internal retry (redirect)(?)
 			if error == null
 				return
 			# get options and
-			# check cancellation
+			# check it's a cancellation
 			if (options = @store.get data) and \
 			   options.signal.aborted and \
 			   not (error.hasOwnProperty 'id')
 				###
-				# determine abortion type and
+				# determine cancellation type and
 				# replace standard error
 				error = if data.timeout and not data.timer
 					then new FetchError 0, 'connection timed out'
 					else new FetchError 4, error.message
-			# after cancelation check,
-			# terminate timeout timer
+			# after cancelation checked,
+			# terminate timer
 			if data.timer
 				data.timerFunc true
 			# wrap unhandled error into FetchError

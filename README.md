@@ -122,7 +122,7 @@ wrapper for [the browser](https://en.wikipedia.org/wiki/Web_browser)
   | **`fullHouse`**     | [boolean][4] | `false` | to include everything, request and response, data and headers |
   | **`promiseReject`** | [boolean][4] | `false` | promise will reject with [Error][5] |
   | **`timeout`**       | [integer][6] | `20`    | request will abort in the given [delay in seconds][112] |
-  | **`redirectCount`** | [integer][6] | `5`     | manual redirects limit (functional **only** with http status **300**) |
+  | **`redirectCount`** | [integer][6] | `5`     | manual redirects limit (non-functional, because spec author screwd it) |
   | **`aborter`**       | [aborter][8] |         | to cancel request with given controller |
   | **`headers`**       | [object][3]  | `{..}`  | [request headers][114] |
   | **`parseResponse`** | [string][2]  | `data`  | `data` is to parse all the content to proper [content type][113], `stream` for **`FetchStream`**, otherwise, raw [response][7] |

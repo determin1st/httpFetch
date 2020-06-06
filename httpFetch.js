@@ -972,8 +972,8 @@ httpFetch = function(){
       responseHandler = function(r){
         var h, a, b;
         res.time = performance.now();
-        res.type = r.type;
         res.status = r.status;
+        res.type = r.type;
         res.headers = h = {};
         if (data.timer) {
           data.timerFunc(true);
@@ -1080,9 +1080,9 @@ httpFetch = function(){
       };
       res.request.time = performance.now();
       if (decryptHandler) {
-        fetch(res.request.url, options).then(responseHandler).then(decryptHandler).then(successHandler, errorHandler);
+        fetch(res.request.url, options).then(responseHandler).then(decryptHandler).then(successHandler)['catch'](errorHandler);
       } else {
-        fetch(res.request.url, options).then(responseHandler).then(successHandler, errorHandler);
+        fetch(res.request.url, options).then(responseHandler).then(successHandler)['catch'](errorHandler);
       }
       this$.store.set(data, options);
     };
