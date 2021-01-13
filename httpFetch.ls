@@ -901,7 +901,7 @@ httpFetch = do ->
 				try
 					a = JSON.parse a
 				catch
-					a = null
+					a = new FetchError 1, 'incorrect JSON'
 				# complete
 				return a
 			# }}}

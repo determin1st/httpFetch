@@ -790,7 +790,7 @@ httpFetch = function(){
           a = JSON.parse(a);
         } catch (e$) {
           e = e$;
-          a = null;
+          a = new FetchError(1, 'incorrect JSON');
         }
         return a;
       };
